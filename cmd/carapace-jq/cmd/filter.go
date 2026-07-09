@@ -5,7 +5,8 @@ import (
 	"fmt"
 
 	"github.com/carapace-sh/carapace"
-	"github.com/carapace-sh/carapace-jq/pkg/jq"
+	"github.com/carapace-sh/carapace-jq/pkg/actions/tools/jq"
+	jqparser "github.com/carapace-sh/carapace-jq/pkg/jq"
 	"github.com/spf13/cobra"
 )
 
@@ -14,7 +15,7 @@ var filterCmd = &cobra.Command{
 	Short: "Parse a jq filter expression",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		expression, err := jq.Parse(args[0])
+		expression, err := jqparser.Parse(args[0])
 		if err != nil {
 			return err
 		}
@@ -32,7 +33,7 @@ var filterCompleteCmd = &cobra.Command{
 	Short: "Get completion context for a jq filter expression",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		ctx := jq.ParseForCompletion(args[0])
+		ctx := jqparser.ParseForCompletion(args[0])
 		m, err := json.MarshalIndent(ctx, "", "  ")
 		if err != nil {
 			return err
@@ -48,13 +49,13 @@ func init() {
 
 	carapace.Gen(filterCmd).PositionalCompletion(
 		carapace.ActionCallback(func(c carapace.Context) carapace.Action {
-			return carapace.ActionValues()
+			return jq.ActionFilterComplete(c.Value)
 		}),
 	)
 
 	carapace.Gen(filterCompleteCmd).PositionalCompletion(
 		carapace.ActionCallback(func(c carapace.Context) carapace.Action {
-			return carapace.ActionValues()
+			return jq.ActionFilterComplete(c.Value)
 		}),
 	)
 }
