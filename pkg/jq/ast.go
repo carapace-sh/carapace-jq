@@ -213,21 +213,21 @@ type IdentityExpr struct{}
 type RecursiveDescentExpr struct{}
 
 type FieldExpr struct {
-	Name      string // key name (e.g. "foo" in .foo)
-	Base      *Expression // the value being accessed (nil for top-level .foo)
-	Optional  bool   // .foo? — error suppression
+	Name     string      // key name (e.g. "foo" in .foo)
+	Base     *Expression // the value being accessed (nil for top-level .foo)
+	Optional bool        // .foo? — error suppression
 }
 
 type IndexExpr struct {
-	Index   *Expression // expression inside .[...]
-	Base    *Expression // the value being indexed (nil for top-level .[...])
+	Index    *Expression // expression inside .[...]
+	Base     *Expression // the value being indexed (nil for top-level .[...])
 	Optional bool        // .[expr]? — error suppression
 }
 
 type SliceExpr struct {
-	Start *Expression // nil if omitted
-	End   *Expression // nil if omitted
-	Base    *Expression // the value being sliced (nil for top-level .[...])
+	Start    *Expression // nil if omitted
+	End      *Expression // nil if omitted
+	Base     *Expression // the value being sliced (nil for top-level .[...])
 	Optional bool
 }
 
@@ -317,11 +317,11 @@ type ArrayExpr struct {
 type ObjectKeyKind int
 
 const (
-	ObjectKeyBare        ObjectKeyKind = iota // {foo: ...}
-	ObjectKeyString                           // {"foo": ...}
-	ObjectKeyVariable                         // {$foo: ...} — variable value as key
-	ObjectKeyShorthand                        // {foo} or {$foo}
-	ObjectKeyExpression                       // {(expr): ...}
+	ObjectKeyBare       ObjectKeyKind = iota // {foo: ...}
+	ObjectKeyString                          // {"foo": ...}
+	ObjectKeyVariable                        // {$foo: ...} — variable value as key
+	ObjectKeyShorthand                       // {foo} or {$foo}
+	ObjectKeyExpression                      // {(expr): ...}
 )
 
 type ObjectEntry struct {
@@ -351,10 +351,10 @@ type FunctionCallExpr struct {
 }
 
 type IfExpr struct {
-	Cond     *Expression
-	Then     *Expression
-	Elifs    []ElifBranch
-	Else     *Expression // nil if no else clause
+	Cond  *Expression
+	Then  *Expression
+	Elifs []ElifBranch
+	Else  *Expression // nil if no else clause
 }
 
 type ElifBranch struct {
@@ -363,23 +363,23 @@ type ElifBranch struct {
 }
 
 type TryExpr struct {
-	Body   *Expression
-	Catch  *Expression // nil if no catch clause
+	Body  *Expression
+	Catch *Expression // nil if no catch clause
 }
 
 type ReduceExpr struct {
-	Source    *Expression // the exp in "reduce exp as ..."
-	Pattern   *Expression // the $var or destructuring pattern
-	Init      *Expression
-	Update    *Expression
+	Source  *Expression // the exp in "reduce exp as ..."
+	Pattern *Expression // the $var or destructuring pattern
+	Init    *Expression
+	Update  *Expression
 }
 
 type ForeachExpr struct {
-	Source    *Expression
-	Pattern   *Expression
-	Init      *Expression
-	Update    *Expression
-	Extract   *Expression // nil if omitted
+	Source  *Expression
+	Pattern *Expression
+	Init    *Expression
+	Update  *Expression
+	Extract *Expression // nil if omitted
 }
 
 type AsBindingExpr struct {

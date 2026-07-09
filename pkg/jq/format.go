@@ -225,12 +225,12 @@ func formatExprInner(e *Expression) string {
 			argParts := make([]string, len(de.Args))
 			for i, a := range de.Args {
 				if a.IsValue {
-					argParts[i] = "($" + a.Name + ")"
+					argParts[i] = "$" + a.Name
 				} else {
 					argParts[i] = a.Name
 				}
 			}
-			s += "(" + strings.Join(argParts, ", ") + ")"
+			s += "(" + strings.Join(argParts, "; ") + ")"
 		}
 		s += ": " + formatExpr(de.Body, precPipe) + "; " + formatExpr(de.Rest, precPipe)
 		return s
