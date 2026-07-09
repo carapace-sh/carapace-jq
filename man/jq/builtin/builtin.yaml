@@ -1,0 +1,94 @@
+empty: |
+  `empty` produces no output. `empty` backtracks to the previous expression
+  in the pipeline.
+error: |
+  `error` produces an error with the input as the message. When the input is
+  an object with a `__jq` field, that field is used as the error metadata.
+halt: |
+  `halt` stops the program with exit code 0.
+halt_error: |
+  `halt_error` stops the program with the input as error message. The exit
+  code is the input if it's a number, otherwise 5.
+infinite: |
+  `infinite` produces positive infinity.
+input: |
+  `input` outputs one new input. Generally requires `-n` (null input).
+inputs: |
+  `inputs` outputs all remaining inputs, one by one. Primarily useful for
+  reductions. Requires `-n`.
+isnan: |
+  `isnan` returns `true` if the input is NaN.
+isinfinite: |
+  `isinfinite` returns `true` if the input is infinite.
+isfinite: |
+  `isfinite` returns `true` if the input is finite.
+isnormal: |
+  `isnormal` returns `true` if the input is a normal number.
+nan: |
+  `nan` produces NaN (not a number).
+type: |
+  `type` returns the type of the input as a string: `"null"`, `"boolean"`,
+  `"number"`, `"string"`, `"array"`, or `"object"`.
+builtins: |
+  `builtins` returns a sorted list of all builtin function names.
+input_filename: |
+  `input_filename` returns the name of the current input file, or `null` if
+  input is from stdin.
+input_line_number: |
+  `input_line_number` returns the current line number.
+length: |
+  `length` returns the length of the input: string codepoint count, array
+  element count, object key count, number absolute value, or 0 for null.
+utf8bytelength: |
+  `utf8bytelength` returns the number of bytes to encode a string in UTF-8.
+keys: |
+  `keys` returns an array of an object's keys sorted by Unicode codepoint,
+  or `[0, 1, ..., length-1]` for arrays.
+keys_unsorted: |
+  `keys_unsorted` is like `keys` but preserves insertion order for objects.
+to_entries: |
+  `to_entries` converts an object to an array of `{"key": k, "value": v}` entries.
+from_entries: |
+  `from_entries` converts an array of key-value pair objects back to an object.
+ascii_downcase: |
+  `ascii_downcase` converts ASCII letters (a-z, A-Z) to lowercase.
+ascii_upcase: |
+  `ascii_upcase` converts ASCII letters (a-z, A-Z) to uppercase.
+explode: |
+  `explode` converts a string to an array of Unicode codepoint numbers.
+implode: |
+  `implode` converts an array of codepoint numbers to a string.
+tostring: |
+  `tostring` converts to string: strings pass through, other types are
+  JSON-encoded.
+tonumber: |
+  `tonumber` parses a string as a number; numbers pass through.
+tojson: |
+  `tojson` serializes the input as a JSON text string (strings get quotes).
+fromjson: |
+  `fromjson` parses a JSON string into the corresponding value.
+add: |
+  `add` reduces an array with `+`. Empty arrays produce `null`.
+reverse: |
+  `reverse` reverses an array or string.
+sort: |
+  `sort` sorts an array using jq's sort order.
+unique: |
+  `unique` removes duplicates from a sorted array.
+min: |
+  `min` returns the minimum element of an array.
+max: |
+  `max` returns the maximum element of an array.
+not: |
+  `not` negates the truthiness of the input.
+env: |
+  `env` outputs an object representing jq's current environment variables.
+paths: |
+  `paths` outputs all paths in the input as arrays.
+leaf_paths: |
+  `leaf_paths` outputs all paths to leaf values (non-iterable values).
+debug: |
+  `debug` is like `.` (passes input through) but writes `["DEBUG:", <input>]`
+  to stderr.
+stderr: |
+  `stderr` outputs to stderr instead of stdout.

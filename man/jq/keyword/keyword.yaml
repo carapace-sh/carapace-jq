@@ -1,0 +1,25 @@
+if: |
+  `if A then B else C end` — conditional. If `A` produces a truthy value,
+  behaves as `B`; otherwise as `C` (or `.` if `else` is omitted).
+try: |
+  `try EXP catch EXP` — runs the first expression; on error, runs the catch
+  expression with the error message as input.
+reduce: |
+  `reduce EXP as $var (INIT; UPDATE)` — combines all results of `EXP` into
+  a single accumulated value.
+foreach: |
+  `foreach EXP as $var (INIT; UPDATE; EXTRACT)` — like `reduce` but emits
+  intermediate results.
+def: |
+  `def name: body;` — defines a function. `def name(args): body;` with
+  arguments.
+label: |
+  `label $name | EXP` — defines a label for `break` to exit to.
+break: |
+  `break $name` — exits the nearest `label $name` expression.
+true: |
+  `true` — boolean true literal.
+false: |
+  `false` — boolean false literal.
+null: |
+  `null` — null literal.

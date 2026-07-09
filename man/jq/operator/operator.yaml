@@ -1,0 +1,58 @@
+pipe: |
+  `|` feeds the output(s) of the left filter into the input of the right
+  filter. If the left side produces multiple results, the right side runs
+  for each one.
+comma: |
+  `,` feeds the same input to both filters, concatenating their outputs in
+  order. Has higher precedence than `|`.
+alternative: |
+  `//` produces all values from the left side that are neither `false` nor
+  `null`. If the left side produces no values, produces all values from the
+  right side.
+assign: |
+  `=` assigns the RHS value to the LHS path. RHS input is the same as the
+  LHS input (not the value at the path).
+update_assign: |
+  `|=` updates the value at the LHS path by feeding it through the RHS filter.
+add_assign: |
+  `+=` is equivalent to `a |= . + b`.
+sub_assign: |
+  `-=` is equivalent to `a |= . - b`.
+mul_assign: |
+  `*=` is equivalent to `a |= . * b`.
+div_assign: |
+  `/=` is equivalent to `a |= . / b`.
+mod_assign: |
+  `%=` is equivalent to `a |= . % b`.
+alt_assign: |
+  `//=` is equivalent to `a |= . // b`.
+eq: |
+  `==` produces `true` if both sides represent equivalent JSON values.
+  Strict equality — strings are never equal to numbers.
+ne: |
+  `!=` is the negation of `==`.
+lt: |
+  `<` comparison using jq's sort order.
+gt: |
+  `>` comparison using jq's sort order.
+le: |
+  `<=` comparison using jq's sort order.
+ge: |
+  `>=` comparison using jq's sort order.
+add: |
+  `+` adds numbers, concatenates arrays/strings, merges objects (right wins).
+sub: |
+  `-` subtracts numbers, removes array elements.
+mul: |
+  `*` multiplies numbers, repeats strings, deep-merges objects.
+div: |
+  `/` divides numbers (error on 0), splits strings by separator.
+mod: |
+  `%` modulo for numbers.
+and: |
+  `and` boolean AND based on truthiness.
+or: |
+  `or` boolean OR based on truthiness.
+optional: |
+  `?` is shorthand for `try EXP` — suppresses errors and produces no output
+  on error.

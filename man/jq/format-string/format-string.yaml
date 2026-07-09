@@ -1,0 +1,23 @@
+text: |
+  `@text` calls `tostring` — strings pass through, other types are
+  JSON-encoded.
+json: |
+  `@json` serializes the input as a JSON text string.
+html: |
+  `@html` maps characters to HTML entities: `<` → `&lt;`, `>` → `&gt;`,
+  `&` → `&amp;`, `'` → `&apos;`, `"` → `&quot;`.
+uri: |
+  `@uri` percent-encodes all reserved URI characters as `%XX` sequences.
+csv: |
+  `@csv` renders an array as a CSV row: strings double-quoted, quotes
+  escaped by repetition.
+tsv: |
+  `@tsv` renders an array as a TSV row (tab-separated). Special characters
+  escaped: `\n`, `\r`, `\t`, `\\`.
+sh: |
+  `@sh` escapes for POSIX shell use. If input is an array, output is
+  space-separated quoted strings.
+base64: |
+  `@base64` base64-encodes the input string (RFC 4648).
+base64d: |
+  `@base64d` base64-decodes the input string (RFC 4648).
