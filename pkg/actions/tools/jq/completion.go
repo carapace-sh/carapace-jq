@@ -20,7 +20,7 @@ func ActionFilters() carapace.Action {
 			partialToken = expr[lastSpace+1:]
 		}
 
-		if !strings.Contains(expr, " ") && !hasExpected(ctx, jqparser.ExpectedExpression) {
+		if !strings.Contains(expr, " ") && !hasExpected(ctx, jqparser.ExpectedExpression) && !hasExpected(ctx, jqparser.ExpectedFormatName) {
 			typedPrefix = expr
 			partialToken = ""
 		}
@@ -40,7 +40,7 @@ func actionForCompletionContext(ctx *jqparser.CompletionContext) carapace.Action
 	}
 
 	if ctx.InFormat {
-		return ActionFormatStrings()
+		return ActionFormats()
 	}
 
 	if ctx.InAsPattern {
@@ -138,7 +138,7 @@ func actionForExpectedExpression(ctx *jqparser.CompletionContext) carapace.Actio
 	batch = append(batch, ActionKeywords())
 	batch = append(batch, ActionLiterals())
 	batch = append(batch, ActionSpecialFilters())
-	batch = append(batch, ActionFormatStrings().Prefix("@"))
+	batch = append(batch, ActionFormats())
 
 	return batch.ToA()
 }
