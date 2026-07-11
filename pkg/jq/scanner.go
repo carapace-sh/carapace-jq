@@ -237,7 +237,7 @@ func (p *parser) parseStringLiteralValue() ([]StringPart, error) {
 			case 'u':
 				// Unicode escape: \uXXXX
 				var runes []rune
-				for i := 0; i < 4; i++ {
+				for range 4 {
 					if p.atEnd() || !isHexDigit(p.peek()) {
 						return nil, p.syntaxError("invalid unicode escape sequence")
 					}
@@ -257,7 +257,7 @@ func (p *parser) parseStringLiteralValue() ([]StringPart, error) {
 							p.advance()
 							var lo []rune
 							valid := true
-							for i := 0; i < 4; i++ {
+							for range 4 {
 								if p.atEnd() || !isHexDigit(p.peek()) {
 									valid = false
 									break

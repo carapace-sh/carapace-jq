@@ -324,15 +324,16 @@ func formatObject(oe *ObjectExpr) string {
 }
 
 func formatIf(ie *IfExpr) string {
-	s := "if " + formatExpr(ie.Cond, precPipe) + " then " + formatExpr(ie.Then, precPipe)
+	var s strings.Builder
+	s.WriteString("if " + formatExpr(ie.Cond, precPipe) + " then " + formatExpr(ie.Then, precPipe))
 	for _, elif := range ie.Elifs {
-		s += " elif " + formatExpr(elif.Cond, precPipe) + " then " + formatExpr(elif.Then, precPipe)
+		s.WriteString(" elif " + formatExpr(elif.Cond, precPipe) + " then " + formatExpr(elif.Then, precPipe))
 	}
 	if ie.Else != nil {
-		s += " else " + formatExpr(ie.Else, precPipe)
+		s.WriteString(" else " + formatExpr(ie.Else, precPipe))
 	}
-	s += " end"
-	return s
+	s.WriteString(" end")
+	return s.String()
 }
 
 func formatPattern(e *Expression) string {

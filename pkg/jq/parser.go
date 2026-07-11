@@ -2,6 +2,7 @@ package jq
 
 import (
 	"fmt"
+	"strings"
 	"unicode/utf8"
 )
 
@@ -847,10 +848,10 @@ func (p *parser) parseFieldAccess(base *Expression) (*Expression, error) {
 			return nil, err
 		}
 		// For field access, the string must be a simple text (no interpolation)
-		var name string
+		var name strings.Builder
 		for _, part := range parts {
 			if t, ok := part.(StringText); ok {
-				name += t.Text
+				name.WriteString(t.Text)
 			} else {
 				return nil, p.syntaxError("string interpolation not allowed in field name")
 			}
@@ -858,7 +859,7 @@ func (p *parser) parseFieldAccess(base *Expression) (*Expression, error) {
 		return &Expression{
 			Kind:    KindField,
 			Span:    Span{Start: start, End: p.pos},
-			payload: &FieldExpr{Name: name, Base: base},
+			payload: &FieldExpr{Name: name.String(), Base: base},
 		}, nil
 	}
 
@@ -977,10 +978,10 @@ func (p *parser) parsePrimary() (*Expression, error) {
 			if err != nil {
 				return nil, err
 			}
-			var name string
+			var name strings.Builder
 			for _, part := range parts {
 				if t, ok := part.(StringText); ok {
-					name += t.Text
+					name.WriteString(t.Text)
 				} else {
 					return nil, p.syntaxError("string interpolation not allowed in field name")
 				}
@@ -988,7 +989,7 @@ func (p *parser) parsePrimary() (*Expression, error) {
 			return &Expression{
 				Kind:    KindField,
 				Span:    Span{Start: start, End: p.pos},
-				payload: &FieldExpr{Name: name, Base: identity},
+				payload: &FieldExpr{Name: name.String(), Base: identity},
 			}, nil
 		}
 		if !p.atEnd() && p.peek() == '[' {
@@ -1237,10 +1238,10 @@ func (p *parser) parseObjectEntry() (ObjectEntry, error) {
 		if err != nil {
 			return ObjectEntry{}, err
 		}
-		var name string
+		var name strings.Builder
 		for _, part := range parts {
 			if t, ok := part.(StringText); ok {
-				name += t.Text
+				name.WriteString(t.Text)
 			} else {
 				return ObjectEntry{}, p.syntaxError("string interpolation not allowed in object key")
 			}
@@ -1257,7 +1258,7 @@ func (p *parser) parseObjectEntry() (ObjectEntry, error) {
 		}
 		return ObjectEntry{
 			KeyKind: ObjectKeyString,
-			KeyName: name,
+			KeyName: name.String(),
 			Value:   val,
 		}, nil
 	}

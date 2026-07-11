@@ -1,6 +1,7 @@
 package jq
 
 import (
+	"strings"
 	"testing"
 )
 
@@ -59,14 +60,14 @@ func testParseString(t *testing.T, input, expected string) {
 		t.Fatalf("parse %q: expected KindString, got %v", input, expr.Kind)
 	}
 	parts := expr.StringParts()
-	var got string
+	var got strings.Builder
 	for _, part := range parts {
 		if t, ok := part.(StringText); ok {
-			got += t.Text
+			got.WriteString(t.Text)
 		}
 	}
-	if got != expected {
-		t.Errorf("parse %q: expected %q, got %q", input, expected, got)
+	if got.String() != expected {
+		t.Errorf("parse %q: expected %q, got %q", input, expected, got.String())
 	}
 }
 

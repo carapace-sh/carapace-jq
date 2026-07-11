@@ -1,6 +1,7 @@
 package jq
 
 import (
+	"slices"
 	"strings"
 
 	"github.com/carapace-sh/carapace"
@@ -143,12 +144,7 @@ func actionForExpectedExpression(ctx *jqparser.CompletionContext) carapace.Actio
 }
 
 func hasExpected(ctx *jqparser.CompletionContext, tok jqparser.ExpectedToken) bool {
-	for _, e := range ctx.ExpectedTokens {
-		if e == tok {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(ctx.ExpectedTokens, tok)
 }
 
 func actionForKeywordTokens(ctx *jqparser.CompletionContext) carapace.Action {

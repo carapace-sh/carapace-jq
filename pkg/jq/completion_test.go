@@ -7,21 +7,17 @@ import (
 
 func assertHasExpected(t *testing.T, ctx *CompletionContext, tok ExpectedToken) {
 	t.Helper()
-	for _, e := range ctx.ExpectedTokens {
-		if e == tok {
-			return
-		}
+	if slices.Contains(ctx.ExpectedTokens, tok) {
+		return
 	}
 	t.Errorf("expected token %v not found in %v", tok, ctx.ExpectedTokens)
 }
 
 func assertNotExpected(t *testing.T, ctx *CompletionContext, tok ExpectedToken) {
 	t.Helper()
-	for _, e := range ctx.ExpectedTokens {
-		if e == tok {
-			t.Errorf("token %v should not be in %v", tok, ctx.ExpectedTokens)
-			return
-		}
+	if slices.Contains(ctx.ExpectedTokens, tok) {
+		t.Errorf("token %v should not be in %v", tok, ctx.ExpectedTokens)
+		return
 	}
 }
 
