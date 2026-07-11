@@ -359,3 +359,170 @@ func TestCompletionAfterNegate(t *testing.T) {
 	ctx := ParseForCompletion("-")
 	assertHasExpected(t, ctx, ExpectedExpression)
 }
+
+// --- Bug fix tests ---
+
+func TestCompletionAfterDotNoAfterDotForBracket(t *testing.T) {
+	ctx := ParseForCompletion(".[2:]")
+	if ctx.AfterDot {
+		t.Error("AfterDot should be false after bracket access")
+	}
+}
+
+func TestCompletionAfterDotNoAfterDotForIndex(t *testing.T) {
+	ctx := ParseForCompletion(".[0]")
+	if ctx.AfterDot {
+		t.Error("AfterDot should be false after index access")
+	}
+}
+
+func TestCompletionAfterDotNoAfterDotForQuotedField(t *testing.T) {
+	ctx := ParseForCompletion(`."foo"`)
+	if ctx.AfterDot {
+		t.Error("AfterDot should be false after quoted field access")
+	}
+}
+
+func TestCompletionPostfixBracketNoAfterDot(t *testing.T) {
+	ctx := ParseForCompletion(".foo[0]")
+	if ctx.AfterDot {
+		t.Error("AfterDot should be false after .foo[0]")
+	}
+}
+
+func TestCompletionPostfixQuotedFieldNoAfterDot(t *testing.T) {
+	ctx := ParseForCompletion(`.foo."bar"`)
+	if ctx.AfterDot {
+		t.Error("AfterDot should be false after .foo.\"bar\"")
+	}
+}
+
+func TestCompletionIdentifierNoSpuriousClosingParen(t *testing.T) {
+	ctx := ParseForCompletion("foo")
+	assertHasExpected(t, ctx, ExpectedExpression)
+	assertNotExpected(t, ctx, ExpectedClosingParen)
+}
+
+func TestCompletionIdentifierInFunctionGetsClosingParen(t *testing.T) {
+	ctx := ParseForCompletion("map(foo")
+	assertHasExpected(t, ctx, ExpectedClosingParen)
+}
+
+func TestCompletionIdentifierInParenGetsClosingParen(t *testing.T) {
+	ctx := ParseForCompletion("(foo")
+	assertHasExpected(t, ctx, ExpectedClosingParen)
+}
+
+func TestCompletionIfConditionWithPipe(t *testing.T) {
+	ctx := ParseForCompletion("if .a | .b then ")
+	assertHasExpected(t, ctx, ExpectedExpression)
+}
+
+func TestCompletionIfCompleteWithPipe(t *testing.T) {
+	ctx := ParseForCompletion("if .a | .b then . else . end ")
+	assertHasExpected(t, ctx, ExpectedOperator)
+}
+
+func TestCompletionReduceSourceWithPipe(t *testing.T) {
+	ctx := ParseForCompletion("reduce .a | .b as $x (")
+	if ctx.Reduce == nil {
+		t.Fatal("expected Reduce context")
+	}
+	assertHasExpected(t, ctx, ExpectedExpression)
+}
+
+func TestCompletionForeachSourceWithPipe(t *testing.T) {
+	ctx := ParseForCompletion("foreach .a | .b as $x (")
+	if ctx.Reduce == nil {
+		t.Fatal("expected Reduce context")
+	}
+	if !ctx.Reduce.IsForeach {
+		t.Error("expected IsForeach to be true")
+	}
+}
+
+func TestCompletionFunctionArgWithPipe(t *testing.T) {
+	ctx := ParseForCompletion("map(.a | .b) ")
+	assertHasExpected(t, ctx, ExpectedOperator)
+}
+
+func TestCompletionArrayElementWithPipe(t *testing.T) {
+	ctx := ParseForCompletion("[.a | .b] ")
+	assertHasExpected(t, ctx, ExpectedOperator)
+}
+
+func TestCompletionObjectValueWithPipe(t *testing.T) {
+	ctx := ParseForCompletion("{foo: .a | .b} ")
+	assertHasExpected(t, ctx, ExpectedOperator)
+}
+
+func TestCompletionBracketAccessWithPipe(t *testing.T) {
+	ctx := ParseForCompletion(".[.a | .b] ")
+	assertHasExpected(t, ctx, ExpectedOperator)
+}
+
+func TestCompletionStringInterpWithPipe(t *testing.T) {
+	ctx := ParseForCompletion(`"hello \(.a | .b)"`)
+	assertHasExpected(t, ctx, ExpectedOperator)
+}
+
+func TestCompletionReduceExpectsOpeningParen(t *testing.T) {
+	ctx := ParseForCompletion("reduce .[] as $x ")
+	assertHasExpected(t, ctx, ExpectedOpeningParen)
+	assertNotExpected(t, ctx, ExpectedClosingParen)
+}
+
+func TestCompletionForeachExpectsOpeningParen(t *testing.T) {
+	ctx := ParseForCompletion("foreach .[] as $x ")
+	assertHasExpected(t, ctx, ExpectedOpeningParen)
+	assertNotExpected(t, ctx, ExpectedClosingParen)
+}
+
+func TestCompletionNestedDefRestoresDefName(t *testing.T) {
+	ctx := ParseForCompletion("def f: def g: .; g; f")
+	// After the inner def's semicolon and "g;", we're parsing the rest "f"
+	// DefName should NOT be "g" (the inner def's name)
+	if ctx.InDef {
+		t.Error("InDef should be false after nested def completes")
+	}
+	if ctx.DefName == "g" {
+		t.Error("DefName should not be 'g' after inner def completes")
+	}
+}
+
+func TestCompletionNestedDefRestoresInDef(t *testing.T) {
+	ctx := ParseForCompletion("def f: def g: .; g; ")
+	// After inner def, we're parsing the rest of outer def
+	// InDef should be false (outer def's rest is the top-level body after ;)
+	if ctx.DefName == "g" {
+		t.Error("DefName should not be 'g' after inner def completes")
+	}
+}
+
+func TestCompletionPatternAlternativeAtCursor(t *testing.T) {
+	ctx := ParseForCompletion(".foo as [$a] ?// ")
+	assertHasExpected(t, ctx, ExpectedDollar)
+}
+
+func TestCompletionPatternAlternativeComplete(t *testing.T) {
+	ctx := ParseForCompletion(".foo as [$a] ?// $b | ")
+	assertHasExpected(t, ctx, ExpectedExpression)
+}
+
+func TestCompletionIfThenElseEndWithPipes(t *testing.T) {
+	ctx := ParseForCompletion("if .a | .b then .c | .d else .e | .f end ")
+	assertHasExpected(t, ctx, ExpectedOperator)
+}
+
+func TestCompletionElifWithPipe(t *testing.T) {
+	ctx := ParseForCompletion("if .a then .b elif .c | .d then .e end ")
+	assertHasExpected(t, ctx, ExpectedOperator)
+}
+
+func TestCompletionDotFieldThenBracketNoExpression(t *testing.T) {
+	// .foo.[0] — the . before [ is an error in jq, but the completion parser
+	// should not add ExpectedExpression (the [ will be handled by postfix)
+	ctx := ParseForCompletion(".foo.[0]")
+	assertNotExpected(t, ctx, ExpectedExpression)
+	assertHasExpected(t, ctx, ExpectedOperator)
+}

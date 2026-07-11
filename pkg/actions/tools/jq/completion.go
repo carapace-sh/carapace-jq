@@ -90,6 +90,9 @@ func ActionFilterComplete(input string) carapace.Action {
 		if hasExpected(ctx, jqparser.ExpectedClosingBrace) {
 			return carapace.ActionValues("}")
 		}
+		if hasExpected(ctx, jqparser.ExpectedOpeningParen) {
+			return carapace.ActionValues("(").NoSpace()
+		}
 		if hasExpected(ctx, jqparser.ExpectedComma) {
 			return carapace.ActionValues(",")
 		}
@@ -99,8 +102,17 @@ func ActionFilterComplete(input string) carapace.Action {
 		if hasExpected(ctx, jqparser.ExpectedColon) {
 			return carapace.ActionValues(":").NoSpace()
 		}
+		if hasExpected(ctx, jqparser.ExpectedDefColon) {
+			return carapace.ActionValues(":").NoSpace()
+		}
 		if hasExpected(ctx, jqparser.ExpectedSemicolon) {
 			return carapace.ActionValues(";").NoSpace()
+		}
+		if hasExpected(ctx, jqparser.ExpectedDefSemicolon) {
+			return carapace.ActionValues(";").NoSpace()
+		}
+		if hasExpected(ctx, jqparser.ExpectedKeyword) {
+			return ActionKeywordTokens()
 		}
 
 		return carapace.ActionValues()

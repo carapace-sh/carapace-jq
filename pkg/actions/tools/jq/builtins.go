@@ -151,6 +151,19 @@ func ActionKeywords() carapace.Action {
 	).UidF(Uid("keyword"))
 }
 
+// ActionKeywordTokens completes jq keyword tokens that appear within
+// constructs (then, elif, else, end, catch, as).
+func ActionKeywordTokens() carapace.Action {
+	return carapace.ActionValuesDescribed(
+		"then", "Then branch of if expression",
+		"elif", "Else-if branch",
+		"else", "Else branch",
+		"end", "End of if expression",
+		"catch", "Error handler for try",
+		"as", "Variable binding",
+	).UidF(Uid("keyword-token")).NoSpace()
+}
+
 // ActionLiterals completes jq literal values.
 func ActionLiterals() carapace.Action {
 	return carapace.ActionValuesDescribed(

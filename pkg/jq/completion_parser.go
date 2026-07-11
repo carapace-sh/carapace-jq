@@ -233,6 +233,8 @@ func (p *compParser) parseQuery() {
 }
 
 func (p *compParser) parseDef() {
+	savedInDef := p.ctx.InDef
+	savedDefName := p.ctx.DefName
 	p.ctx.InDef = true
 	p.pos += 3
 	p.skipWS()
@@ -281,6 +283,9 @@ func (p *compParser) parseDef() {
 	if p.peek() == ';' {
 		p.advance()
 	}
+	// Restore outer def state before parsing rest
+	p.ctx.InDef = savedInDef
+	p.ctx.DefName = savedDefName
 	p.skipWS()
 	if !p.atCursorOrEnd() {
 		p.parseQuery()
@@ -385,6 +390,10 @@ func (p *compParser) parsePattern() {
 	for p.matchString("?//") {
 		p.pos += 3
 		p.skipWS()
+		if p.atCursorOrEnd() {
+			p.addExpected(ExpectedDollar)
+			return
+		}
 		p.parsePatternSingle()
 	}
 }
@@ -505,6 +514,31 @@ func (p *compParser) parsePipeLevel() {
 // parseExpLevel handles everything below comma (alternative, assign, or, and, etc.)
 func (p *compParser) parseExpLevel() {
 	p.parsePratt(precPipe + 1) // exclude pipe and comma, handle them in parsePipeLevel
+}
+
+// parsePipeExp handles a sub-expression that allows pipe but not comma.
+// This mirrors parser.go's parseExp, used for function args, array elements,
+// object values, bracket access expressions, if/then/else bodies, etc.
+func (p *compParser) parsePipeExp() {
+	p.parsePratt(precPipe + 1) // exclude comma
+	for {
+		p.skipWS()
+		if p.atCursorOrEnd() {
+			break
+		}
+		// Check for pipe (but not |=)
+		if p.peek() == '|' && (p.pos+1 >= p.cursor || p.input[p.pos+1] != '=') {
+			p.advance()
+			p.skipWS()
+			if p.atCursorOrEnd() {
+				p.beforeExpression()
+				return
+			}
+			p.parsePratt(precPipe + 1)
+			continue
+		}
+		break
+	}
 }
 
 // parsePratt handles the Pratt parser levels
@@ -657,6 +691,7 @@ func (p *compParser) parsePostfix() {
 		if p.peek() == '[' {
 			p.advance()
 			p.parseBracketAccess()
+			p.ctx.AfterDot = false
 			continue
 		}
 		break
@@ -678,10 +713,13 @@ func (p *compParser) parseFieldAccess() {
 	// Quoted field
 	if p.peek() == '"' {
 		p.parseStringLiteral()
+		p.ctx.AfterDot = false
 		return
 	}
-	// Just a dot with nothing after — offer field names
-	p.addExpected(ExpectedExpression)
+	// Don't add ExpectedExpression when next is '[' — parsePostfix will handle it
+	if p.peek() != '[' {
+		p.addExpected(ExpectedExpression)
+	}
 }
 
 func (p *compParser) parseBracketAccess() {
@@ -698,7 +736,7 @@ func (p *compParser) parseBracketAccess() {
 	}
 	// .[expr] or .[start:end]
 	if p.peek() != ':' {
-		p.parseExpLevel()
+		p.parsePipeExp()
 	}
 	p.skipWS()
 	if p.atCursorOrEnd() {
@@ -714,7 +752,7 @@ func (p *compParser) parseBracketAccess() {
 			return
 		}
 		if p.peek() != ']' {
-			p.parseExpLevel()
+			p.parsePipeExp()
 		}
 	}
 	p.skipWS()
@@ -757,11 +795,13 @@ func (p *compParser) parsePrimary() {
 		}
 		if p.peek() == '"' {
 			p.parseStringLiteral()
+			p.ctx.AfterDot = false
 			return
 		}
 		if p.peek() == '[' {
 			p.advance()
 			p.parseBracketAccess()
+			p.ctx.AfterDot = false
 			return
 		}
 		p.ctx.AfterDot = false
@@ -804,7 +844,7 @@ func (p *compParser) parsePrimary() {
 			p.advance()
 			return
 		}
-		p.parseExpLevel()
+		p.parsePipeExp()
 		p.skipWS()
 		for !p.atCursorOrEnd() && p.peek() == ',' {
 			p.advance()
@@ -814,7 +854,7 @@ func (p *compParser) parsePrimary() {
 				p.addExpected(ExpectedClosingBracket)
 				return
 			}
-			p.parseExpLevel()
+			p.parsePipeExp()
 			p.skipWS()
 		}
 		if !p.atCursorOrEnd() && p.peek() == ']' {
@@ -947,7 +987,7 @@ func (p *compParser) parseObjectEntry() {
 				p.beforeExpression()
 				return
 			}
-			p.parseExpLevel()
+			p.parsePipeExp()
 			if top != nil {
 				top.inValue = false
 			}
@@ -982,7 +1022,7 @@ func (p *compParser) parseObjectEntry() {
 			p.beforeExpression()
 			return
 		}
-		p.parseExpLevel()
+		p.parsePipeExp()
 		return
 	}
 
@@ -1003,7 +1043,7 @@ func (p *compParser) parseObjectEntry() {
 			p.beforeExpression()
 			return
 		}
-		p.parseExpLevel()
+		p.parsePipeExp()
 		return
 	}
 
@@ -1034,7 +1074,7 @@ func (p *compParser) parseObjectEntry() {
 			p.beforeExpression()
 			return
 		}
-		p.parseExpLevel()
+		p.parsePipeExp()
 		if top != nil {
 			top.inValue = false
 		}
@@ -1085,7 +1125,7 @@ func (p *compParser) parseStringLiteral() {
 					p.beforeExpression()
 					return
 				}
-				p.parseExpLevel()
+				p.parsePipeExp()
 				p.skipWS()
 				if !p.atCursorOrEnd() && p.peek() == ')' {
 					p.advance()
@@ -1186,7 +1226,9 @@ func (p *compParser) parseKeywordOrFunction() {
 	if p.atCursorOrEnd() {
 		p.ctx.PartialIdent = name
 		p.beforeExpression()
-		p.addExpected(ExpectedClosingParen)
+		if len(p.funcStack) > 0 || p.parenDepth > 0 {
+			p.addExpected(ExpectedClosingParen)
+		}
 		return
 	}
 	if p.peek() == '(' {
@@ -1220,7 +1262,7 @@ func (p *compParser) parseFunctionArgs() {
 			p.advance()
 			return
 		}
-		p.parseExpLevel()
+		p.parsePipeExp()
 		p.skipWS()
 		if p.atCursorOrEnd() {
 			p.addExpected(ExpectedComma)
@@ -1247,7 +1289,7 @@ func (p *compParser) parseIf() {
 		p.beforeExpression()
 		return
 	}
-	p.parseExpLevel() // condition
+	p.parsePipeLevel() // condition
 	p.skipWS()
 	if p.atCursorOrEnd() {
 		p.addExpected(ExpectedKeyword) // then
@@ -1262,7 +1304,7 @@ func (p *compParser) parseIf() {
 		p.beforeExpression()
 		return
 	}
-	p.parseExpLevel() // then body
+	p.parsePipeLevel() // then body
 	for {
 		p.skipWS()
 		if p.atCursorOrEnd() {
@@ -1276,7 +1318,7 @@ func (p *compParser) parseIf() {
 				p.beforeExpression()
 				return
 			}
-			p.parseExpLevel()
+			p.parsePipeLevel()
 			p.skipWS()
 			if p.atCursorOrEnd() {
 				p.addExpected(ExpectedKeyword) // then
@@ -1290,7 +1332,7 @@ func (p *compParser) parseIf() {
 				p.beforeExpression()
 				return
 			}
-			p.parseExpLevel()
+			p.parsePipeLevel()
 			continue
 		}
 		break
@@ -1307,7 +1349,7 @@ func (p *compParser) parseIf() {
 			p.beforeExpression()
 			return
 		}
-		p.parseExpLevel()
+		p.parsePipeLevel()
 	}
 	p.skipWS()
 	if p.atCursorOrEnd() {
@@ -1351,7 +1393,7 @@ func (p *compParser) parseReduceForeach(isReduce bool) {
 		p.beforeExpression()
 		return
 	}
-	p.parsePratt(precPipe) // source (no comma, no pipe)
+	p.parsePipeLevel() // source (pipe and comma allowed, mirrors parser.go parsePratt(precPipe))
 	p.skipWS()
 	if p.atCursorOrEnd() {
 		p.addExpected(ExpectedKeyword) // as
@@ -1371,7 +1413,7 @@ func (p *compParser) parseReduceForeach(isReduce bool) {
 	p.ctx.InAsPattern = false
 	p.skipWS()
 	if p.atCursorOrEnd() {
-		p.addExpected(ExpectedClosingParen)
+		p.addExpected(ExpectedOpeningParen)
 		return
 	}
 	if p.peek() == '(' {

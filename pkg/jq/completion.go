@@ -19,6 +19,7 @@ const (
 	ExpectedDollar
 	ExpectedDefColon
 	ExpectedDefSemicolon
+	ExpectedOpeningParen
 )
 
 func (t ExpectedToken) String() string {
@@ -53,6 +54,8 @@ func (t ExpectedToken) String() string {
 		return ":"
 	case ExpectedDefSemicolon:
 		return ";"
+	case ExpectedOpeningParen:
+		return "("
 	}
 	return "Unknown"
 }
