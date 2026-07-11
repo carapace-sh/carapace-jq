@@ -1,7 +1,6 @@
 # carapace-jq
 
 [![PkgGoDev](https://pkg.go.dev/badge/github.com/carapace-sh/carapace-jq)](https://pkg.go.dev/github.com/carapace-sh/carapace-jq)
-|[![GoReportCard](https://goreportcard.com/badge/github.com/carapace-sh/carapace-jq)](https://goreportcard.com/report/github.com/carapace-sh/carapace-jq)
 |[![Coverage Status](https://coveralls.io/repos/github/carapace-sh/carapace-jq/badge.svg?branch=master)](https://coveralls.io/github/carapace-sh/carapace-jq?branch=master)
 
 A [jq] filter expression lexer aimed to enable complex completion in [carapace-bin].
