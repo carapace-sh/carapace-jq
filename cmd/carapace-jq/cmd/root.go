@@ -22,6 +22,6 @@ func Execute() {
 }
 
 func init() {
-	carapace.Gen(rootCmd)
+	carapace.Gen(rootCmd).Standalone()
 	spec.Register(rootCmd)
 }

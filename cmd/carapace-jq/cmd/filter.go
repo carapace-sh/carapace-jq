@@ -3,6 +3,7 @@ package cmd
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/carapace-sh/carapace"
 	"github.com/carapace-sh/carapace-jq/pkg/actions/tools/jq"
@@ -47,15 +48,14 @@ func init() {
 	rootCmd.AddCommand(filterCmd)
 	rootCmd.AddCommand(filterCompleteCmd)
 
-	carapace.Gen(filterCmd).PositionalCompletion(
-		carapace.ActionCallback(func(c carapace.Context) carapace.Action {
-			return jq.ActionFilterComplete(c.Value)
-		}),
-	)
+	// jq filter expressions can contain spaces, so the shell may split them
+	// into multiple words. Use PositionalAnyCompletion to rejoin all args
+	// (except the last toComplete) into a single expression string.
+	filterCompletion := carapace.ActionCallback(func(c carapace.Context) carapace.Action {
+		expr := strings.Join(c.Args, " ") + " " + c.Value
+		return jq.ActionFilterComplete(expr)
+	})
 
-	carapace.Gen(filterCompleteCmd).PositionalCompletion(
-		carapace.ActionCallback(func(c carapace.Context) carapace.Action {
-			return jq.ActionFilterComplete(c.Value)
-		}),
-	)
+	carapace.Gen(filterCmd).PositionalAnyCompletion(filterCompletion)
+	carapace.Gen(filterCompleteCmd).PositionalAnyCompletion(filterCompletion)
 }

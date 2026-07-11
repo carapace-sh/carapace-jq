@@ -71,48 +71,55 @@ func ActionFilterComplete(input string) carapace.Action {
 			return actionForExpectedExpression(ctx)
 		}
 
-		// Operators
+		// Operators, closing tokens, and keywords can coexist (e.g. after a
+		// complete expression inside if/try, both operators and elif/else/end
+		// are valid). Batch them together instead of returning exclusively.
+		batch := carapace.Batch()
+
 		if hasExpected(ctx, jqparser.ExpectedOperator) && len(ctx.ValidOperators) > 0 {
 			ops := make([]jqValidOperator, 0, len(ctx.ValidOperators))
 			for _, op := range ctx.ValidOperators {
 				ops = append(ops, jqValidOperator{Op: op.Op, Description: op.Description})
 			}
-			return ActionOperators(ops).NoSpace()
+			batch = append(batch, ActionOperators(ops).NoSpace())
 		}
 
-		// Closing tokens
 		if hasExpected(ctx, jqparser.ExpectedClosingParen) {
-			return carapace.ActionValues(")")
+			batch = append(batch, carapace.ActionValues(")"))
 		}
 		if hasExpected(ctx, jqparser.ExpectedClosingBracket) {
-			return carapace.ActionValues("]")
+			batch = append(batch, carapace.ActionValues("]"))
 		}
-		if hasExpected(ctx, jqparser.ExpectedClosingBrace) {
-			return carapace.ActionValues("}")
+	if hasExpected(ctx, jqparser.ExpectedClosingBrace) {
+			batch = append(batch, carapace.ActionValues("}"))
 		}
 		if hasExpected(ctx, jqparser.ExpectedOpeningParen) {
-			return carapace.ActionValues("(").NoSpace()
+			batch = append(batch, carapace.ActionValues("(").NoSpace())
 		}
 		if hasExpected(ctx, jqparser.ExpectedComma) {
-			return carapace.ActionValues(",")
+			batch = append(batch, carapace.ActionValues(","))
 		}
 		if hasExpected(ctx, jqparser.ExpectedPipe) {
-			return carapace.ActionValues("|").NoSpace()
+			batch = append(batch, carapace.ActionValues("|").NoSpace())
 		}
 		if hasExpected(ctx, jqparser.ExpectedColon) {
-			return carapace.ActionValues(":").NoSpace()
+			batch = append(batch, carapace.ActionValues(":").NoSpace())
 		}
 		if hasExpected(ctx, jqparser.ExpectedDefColon) {
-			return carapace.ActionValues(":").NoSpace()
+			batch = append(batch, carapace.ActionValues(":").NoSpace())
 		}
 		if hasExpected(ctx, jqparser.ExpectedSemicolon) {
-			return carapace.ActionValues(";").NoSpace()
+			batch = append(batch, carapace.ActionValues(";").NoSpace())
 		}
 		if hasExpected(ctx, jqparser.ExpectedDefSemicolon) {
-			return carapace.ActionValues(";").NoSpace()
+			batch = append(batch, carapace.ActionValues(";").NoSpace())
 		}
 		if hasExpected(ctx, jqparser.ExpectedKeyword) {
-			return ActionKeywordTokens()
+			batch = append(batch, ActionKeywordTokens())
+		}
+
+		if len(batch) > 0 {
+			return batch.ToA()
 		}
 
 		return carapace.ActionValues()
