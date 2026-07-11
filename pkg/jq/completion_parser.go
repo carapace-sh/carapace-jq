@@ -24,6 +24,11 @@ func ParseForCompletion(input string) *CompletionContext {
 	}
 	p.ctx.ExpectedTokens = dedupTokens(p.ctx.ExpectedTokens)
 	p.ctx.ValidOperators = dedupOperators(p.ctx.ValidOperators)
+	p.ctx.ValidKeywords = dedupStrings(p.ctx.ValidKeywords)
+	// Set If context if we're inside an if construct
+	if len(p.ifStack) > 0 {
+		p.ctx.If = &IfContext{Section: p.ifStack[len(p.ifStack)-1].section}
+	}
 	return p.ctx
 }
 
@@ -49,6 +54,9 @@ type compParser struct {
 	// reduceStack tracks nested reduce/foreach
 	reduceStack []*reduceState
 
+	// ifStack tracks nested if-then-elif-else-end constructs
+	ifStack []*ifState
+
 	// parenDepth tracks nested parentheses
 	parenDepth int
 
@@ -71,6 +79,11 @@ type objState struct {
 type reduceState struct {
 	isForeach bool
 	section   string
+}
+
+type ifState struct {
+	// section is "condition", "then", "elif-condition", "elif-then", or "else"
+	section string
 }
 
 // --- Cursor-bounded methods ---
@@ -137,12 +150,40 @@ func (p *compParser) matchKeyword(kw string) bool {
 	return !isIdentifierPart(rune(next))
 }
 
+// matchPartialKeyword is like matchKeyword but also matches partial keywords
+// at the cursor position (e.g. "th" matches "then" when the cursor is at the
+// end of "th"). Returns whether the keyword matches (fully or partially) and
+// whether it was a partial match.
+func (p *compParser) matchPartialKeyword(kw string) (matches bool, partial bool) {
+	// Full match
+	if p.matchKeyword(kw) {
+		return true, false
+	}
+	// Partial match: the input at the current position is a prefix of kw,
+	// and the cursor is at or beyond the end of the partial input.
+	if p.pos >= p.cursor {
+		return false, false
+	}
+	available := p.cursor - p.pos
+	if available > len(kw) {
+		return false, false
+	}
+	if p.input[p.pos:p.pos+available] == kw[:available] {
+		return true, true
+	}
+	return false, false
+}
+
 func (p *compParser) addExpected(t ExpectedToken) {
 	p.ctx.ExpectedTokens = append(p.ctx.ExpectedTokens, t)
 }
 
 func (p *compParser) addOperator(op, desc string) {
 	p.ctx.ValidOperators = append(p.ctx.ValidOperators, ValidOperator{Op: op, Description: desc})
+}
+
+func (p *compParser) addKeywords(keywords ...string) {
+	p.ctx.ValidKeywords = append(p.ctx.ValidKeywords, keywords...)
 }
 
 // afterExpression adds tokens valid after a complete expression.
@@ -152,6 +193,30 @@ func (p *compParser) afterExpression() {
 	}
 	p.addExpected(ExpectedOperator)
 	p.addOperator("|", "pipe")
+
+	// Inside an if condition, only pipe and expression operators are valid
+	// (no assignment, no comma). then keyword is expected separately.
+	if len(p.ifStack) > 0 {
+		top := p.ifStack[len(p.ifStack)-1]
+		if top.section == "condition" || top.section == "elif-condition" {
+			p.addOperator("//", "alternative")
+			p.addOperator("==", "equal")
+			p.addOperator("!=", "not equal")
+			p.addOperator("<", "less than")
+			p.addOperator(">", "greater than")
+			p.addOperator("<=", "less or equal")
+			p.addOperator(">=", "greater or equal")
+			p.addOperator("+", "add")
+			p.addOperator("-", "subtract")
+			p.addOperator("*", "multiply")
+			p.addOperator("/", "divide")
+			p.addOperator("%", "modulo")
+			p.addExpected(ExpectedKeyword)
+			p.addKeywords("then")
+			return
+		}
+	}
+
 	p.addOperator(",", "comma")
 	p.addOperator("//", "alternative")
 	p.addOperator("=", "assign")
@@ -699,16 +764,17 @@ func (p *compParser) parsePostfix() {
 }
 
 func (p *compParser) parseFieldAccess() {
-	p.skipWS()
 	if p.atCursorOrEnd() {
 		p.addExpected(ExpectedExpression)
 		return
 	}
-	// Identifier field
-	if name, ok := p.scanIdent(); ok {
-		p.ctx.PartialIdent = name
-		p.ctx.AfterDot = false
-		return
+	// Identifier field (no whitespace between . and name)
+	if isIdentifierStart(p.peek()) {
+		if name, ok := p.scanIdent(); ok {
+			p.ctx.PartialIdent = name
+			p.ctx.AfterDot = false
+			return
+		}
 	}
 	// Quoted field
 	if p.peek() == '"' {
@@ -783,15 +849,17 @@ func (p *compParser) parsePrimary() {
 		}
 		p.advance()
 		p.ctx.AfterDot = true
-		p.skipWS()
 		if p.atCursorOrEnd() {
 			p.addExpected(ExpectedExpression)
 			return
 		}
-		if name, ok := p.scanIdent(); ok {
-			p.ctx.PartialIdent = name
-			p.ctx.AfterDot = false
-			return
+		// Field access requires no whitespace between . and name (like .foo, not . foo)
+		if isIdentifierStart(p.peek()) {
+			if name, ok := p.scanIdent(); ok {
+				p.ctx.PartialIdent = name
+				p.ctx.AfterDot = false
+				return
+			}
 		}
 		if p.peek() == '"' {
 			p.parseStringLiteral()
@@ -1284,6 +1352,7 @@ func (p *compParser) parseFunctionArgs() {
 }
 
 func (p *compParser) parseIf() {
+	p.ifStack = append(p.ifStack, &ifState{section: "condition"})
 	p.skipWS()
 	if p.atCursorOrEnd() {
 		p.beforeExpression()
@@ -1292,12 +1361,21 @@ func (p *compParser) parseIf() {
 	p.parsePipeLevel() // condition
 	p.skipWS()
 	if p.atCursorOrEnd() {
-		p.addExpected(ExpectedKeyword) // then
+		p.addExpected(ExpectedKeyword)
+		p.addKeywords("then")
 		return
 	}
-	if !p.matchKeyword("then") {
+	if matches, partial := p.matchPartialKeyword("then"); matches {
+		if partial {
+			p.ctx.PartialIdent = p.input[p.pos:p.cursor]
+			p.addExpected(ExpectedKeyword)
+			p.addKeywords("then")
+			return
+		}
+	} else {
 		return
 	}
+	p.ifStack[len(p.ifStack)-1].section = "then"
 	p.pos += 4
 	p.skipWS()
 	if p.atCursorOrEnd() {
@@ -1308,10 +1386,18 @@ func (p *compParser) parseIf() {
 	for {
 		p.skipWS()
 		if p.atCursorOrEnd() {
-			p.addExpected(ExpectedKeyword) // elif, else, end
+			p.addExpected(ExpectedKeyword)
+			p.addKeywords("elif", "else", "end")
 			return
 		}
-		if p.matchKeyword("elif") {
+		if matches, partial := p.matchPartialKeyword("elif"); matches {
+			if partial {
+				p.ctx.PartialIdent = p.input[p.pos:p.cursor]
+				p.addExpected(ExpectedKeyword)
+				p.addKeywords("elif")
+				return
+			}
+			p.ifStack[len(p.ifStack)-1].section = "elif-condition"
 			p.pos += 4
 			p.skipWS()
 			if p.atCursorOrEnd() {
@@ -1321,10 +1407,18 @@ func (p *compParser) parseIf() {
 			p.parsePipeLevel()
 			p.skipWS()
 			if p.atCursorOrEnd() {
-				p.addExpected(ExpectedKeyword) // then
+				p.addExpected(ExpectedKeyword)
+				p.addKeywords("then")
 				return
 			}
-			if p.matchKeyword("then") {
+			if matches, partial := p.matchPartialKeyword("then"); matches {
+				if partial {
+					p.ctx.PartialIdent = p.input[p.pos:p.cursor]
+					p.addExpected(ExpectedKeyword)
+					p.addKeywords("then")
+					return
+				}
+				p.ifStack[len(p.ifStack)-1].section = "elif-then"
 				p.pos += 4
 			}
 			p.skipWS()
@@ -1339,10 +1433,18 @@ func (p *compParser) parseIf() {
 	}
 	p.skipWS()
 	if p.atCursorOrEnd() {
-		p.addExpected(ExpectedKeyword) // else, end
+		p.addExpected(ExpectedKeyword)
+		p.addKeywords("else", "end")
 		return
 	}
-	if p.matchKeyword("else") {
+	if matches, partial := p.matchPartialKeyword("else"); matches {
+		if partial {
+			p.ctx.PartialIdent = p.input[p.pos:p.cursor]
+			p.addExpected(ExpectedKeyword)
+			p.addKeywords("else")
+			return
+		}
+		p.ifStack[len(p.ifStack)-1].section = "else"
 		p.pos += 4
 		p.skipWS()
 		if p.atCursorOrEnd() {
@@ -1353,11 +1455,19 @@ func (p *compParser) parseIf() {
 	}
 	p.skipWS()
 	if p.atCursorOrEnd() {
-		p.addExpected(ExpectedKeyword) // end
+		p.addExpected(ExpectedKeyword)
+		p.addKeywords("end")
 		return
 	}
-	if p.matchKeyword("end") {
+	if matches, partial := p.matchPartialKeyword("end"); matches {
+		if partial {
+			p.ctx.PartialIdent = p.input[p.pos:p.cursor]
+			p.addExpected(ExpectedKeyword)
+			p.addKeywords("end")
+			return
+		}
 		p.pos += 3
+		p.ifStack = p.ifStack[:len(p.ifStack)-1]
 	}
 }
 
@@ -1371,11 +1481,19 @@ func (p *compParser) parseTry() {
 	p.parsePostfix()
 	p.skipWS()
 	if p.atCursorOrEnd() {
-		p.addExpected(ExpectedKeyword) // catch
+		p.addExpected(ExpectedKeyword)
+		p.addKeywords("catch")
 		p.afterExpression()
 		return
 	}
-	if p.matchKeyword("catch") {
+	if matches, partial := p.matchPartialKeyword("catch"); matches {
+		if partial {
+			p.ctx.PartialIdent = p.input[p.pos:p.cursor]
+			p.addExpected(ExpectedKeyword)
+			p.addKeywords("catch")
+			p.afterExpression()
+			return
+		}
 		p.pos += 5
 		p.skipWS()
 		if p.atCursorOrEnd() {
@@ -1396,10 +1514,17 @@ func (p *compParser) parseReduceForeach(isReduce bool) {
 	p.parsePipeLevel() // source (pipe and comma allowed, mirrors parser.go parsePratt(precPipe))
 	p.skipWS()
 	if p.atCursorOrEnd() {
-		p.addExpected(ExpectedKeyword) // as
+		p.addExpected(ExpectedKeyword)
+		p.addKeywords("as")
 		return
 	}
-	if p.matchKeyword("as") {
+	if matches, partial := p.matchPartialKeyword("as"); matches {
+		if partial {
+			p.ctx.PartialIdent = p.input[p.pos:p.cursor]
+			p.addExpected(ExpectedKeyword)
+			p.addKeywords("as")
+			return
+		}
 		p.pos += 2
 	}
 	p.skipWS()
@@ -1576,6 +1701,18 @@ func dedupOperators(ops []ValidOperator) []ValidOperator {
 		if !seen[op.Op] {
 			seen[op.Op] = true
 			result = append(result, op)
+		}
+	}
+	return slices.Clip(result)
+}
+
+func dedupStrings(ss []string) []string {
+	seen := make(map[string]bool)
+	result := make([]string, 0, len(ss))
+	for _, s := range ss {
+		if !seen[s] {
+			seen[s] = true
+			result = append(result, s)
 		}
 	}
 	return slices.Clip(result)

@@ -95,11 +95,22 @@ type ReduceContext struct {
 	Section string `json:"section"` // "init", "update", "extract"
 }
 
+// IfContext provides details about an if-then-elif-else-end construct at the completion position.
+type IfContext struct {
+	// Section indicates which part of the if construct the cursor is in:
+	// "condition", "then", "elif-condition", "elif-then", or "else"
+	Section string `json:"section"`
+}
+
 // CompletionContext describes what is expected at the completion position.
 type CompletionContext struct {
 	ExpectedTokens []ExpectedToken `json:"expectedTokens"`
 
 	ValidOperators []ValidOperator `json:"validOperators,omitempty"`
+
+	// ValidKeywords lists the specific keyword tokens expected at this position
+	// (e.g. "then", "elif", "else", "end", "catch", "as").
+	ValidKeywords []string `json:"validKeywords,omitempty"`
 
 	// PartialIdent is the partial identifier being typed (e.g. "ma" in "ma")
 	PartialIdent string `json:"partialIdent,omitempty"`
@@ -119,6 +130,9 @@ type CompletionContext struct {
 
 	// Reduce is non-nil when the cursor is inside reduce/foreach parens
 	Reduce *ReduceContext `json:"reduce,omitempty"`
+
+	// If is non-nil when the cursor is inside an if-then-elif-else-end construct
+	If *IfContext `json:"if,omitempty"`
 
 	// InFormat is true when completing a @format name
 	InFormat bool `json:"inFormat"`

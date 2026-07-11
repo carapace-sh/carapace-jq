@@ -115,7 +115,7 @@ func ActionFilterComplete(input string) carapace.Action {
 			batch = append(batch, carapace.ActionValues(";").NoSpace())
 		}
 		if hasExpected(ctx, jqparser.ExpectedKeyword) {
-			batch = append(batch, ActionKeywordTokens())
+			batch = append(batch, actionForKeywordTokens(ctx))
 		}
 
 		if len(batch) > 0 {
@@ -159,4 +159,28 @@ func hasExpected(ctx *jqparser.CompletionContext, tok jqparser.ExpectedToken) bo
 		}
 	}
 	return false
+}
+
+// actionForKeywordTokens returns keyword token completions filtered by ValidKeywords.
+// When ValidKeywords is populated, only those keywords are offered. Otherwise,
+// all keyword tokens are offered as a fallback.
+func actionForKeywordTokens(ctx *jqparser.CompletionContext) carapace.Action {
+	if len(ctx.ValidKeywords) > 0 {
+		descs := map[string]string{
+			"then":  "Then branch of if expression",
+			"elif":  "Else-if branch",
+			"else":  "Else branch",
+			"end":   "End of if expression",
+			"catch": "Error handler for try",
+			"as":    "Variable binding",
+		}
+		vals := make([]string, 0, len(ctx.ValidKeywords))
+		described := make([]string, 0, len(ctx.ValidKeywords)*2)
+		for _, kw := range ctx.ValidKeywords {
+			vals = append(vals, kw)
+			described = append(described, kw, descs[kw])
+		}
+		return carapace.ActionValuesDescribed(described...).UidF(Uid("keyword-token")).NoSpace()
+	}
+	return ActionKeywordTokens()
 }

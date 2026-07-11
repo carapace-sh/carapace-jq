@@ -1,6 +1,7 @@
 package jq
 
 import (
+	"slices"
 	"testing"
 )
 
@@ -199,6 +200,46 @@ func TestCompletionIfExpectingEnd(t *testing.T) {
 	// After the else body, 'end' keyword is expected, but also operators
 	// since the expression could continue
 	assertHasExpected(t, ctx, ExpectedOperator)
+}
+
+func TestCompletionIfConditionExpectsThen(t *testing.T) {
+	ctx := ParseForCompletion("if .a ")
+	assertHasExpected(t, ctx, ExpectedKeyword)
+	assertHasExpected(t, ctx, ExpectedOperator)
+	if ctx.If == nil || ctx.If.Section != "condition" {
+		t.Errorf("expected If context with section 'condition', got %v", ctx.If)
+	}
+	if !slices.Contains(ctx.ValidKeywords, "then") {
+		t.Errorf("expected 'then' in ValidKeywords, got %v", ctx.ValidKeywords)
+	}
+	// Assignment operators and comma should not be valid in if condition
+	for _, op := range ctx.ValidOperators {
+		if op.Op == "," || op.Op == "=" || op.Op == "|=" || op.Op == "+=" || op.Op == "-=" || op.Op == "*=" || op.Op == "/=" || op.Op == "%=" || op.Op == "//=" {
+			t.Errorf("operator %q should not be valid in if condition", op.Op)
+		}
+	}
+}
+
+func TestCompletionIfThenBodyContext(t *testing.T) {
+	ctx := ParseForCompletion("if . > 0 then . ")
+	if ctx.If == nil || ctx.If.Section != "then" {
+		t.Errorf("expected If context with section 'then', got %v", ctx.If)
+	}
+	assertHasExpected(t, ctx, ExpectedKeyword)
+	if !slices.Contains(ctx.ValidKeywords, "elif") || !slices.Contains(ctx.ValidKeywords, "else") || !slices.Contains(ctx.ValidKeywords, "end") {
+		t.Errorf("expected 'elif', 'else', 'end' in ValidKeywords, got %v", ctx.ValidKeywords)
+	}
+}
+
+func TestCompletionIfElseBodyContext(t *testing.T) {
+	ctx := ParseForCompletion("if . > 0 then . else . ")
+	if ctx.If == nil || ctx.If.Section != "else" {
+		t.Errorf("expected If context with section 'else', got %v", ctx.If)
+	}
+	assertHasExpected(t, ctx, ExpectedKeyword)
+	if !slices.Contains(ctx.ValidKeywords, "end") {
+		t.Errorf("expected 'end' in ValidKeywords, got %v", ctx.ValidKeywords)
+	}
 }
 
 func TestCompletionAfterTry(t *testing.T) {
