@@ -33,7 +33,8 @@ carapace-jq/
 │   │   ├── completion.go          # CompletionContext, ExpectedToken, ValidOperator, FunctionContext
 │   │   ├── completion_parser.go   # Completion parser: ParseForCompletion()
 │   │   ├── jq_test.go             # Parser tests
-│   │   └── completion_test.go     # Completion parser tests
+│   │   ├── completion_test.go     # Completion parser tests
+│   │   └── sandbox_test.go        # Edge-case tests from jq manual/cookbook
 │   └── actions/tools/jq/
 │       ├── builtins.go            # Static action definitions (builtin functions, keywords, operators)
 │       ├── completion.go          # Completion wiring: maps CompletionContext → carapace actions
@@ -434,3 +435,37 @@ All tests use only the standard `testing` package (no testify or other deps), ma
 6. **Number literal preservation**: jq preserves the original literal form of numbers (e.g., `1.000` stays `1.000`). Should the AST store the original text or a parsed number? **Proposed: store the original text string — matches jq's literal preservation semantics.**
 
 7. **Package name**: `pkg/jq/` vs `pkg/filter/`? **Proposed: `pkg/jq/` — the project is `carapace-jq`, and the parser handles the full jq filter language, not just "filters" in a narrow sense.**
+
+## Known Parser Limitations
+
+Identified by sandbox testing against complex jq expressions sourced from the [jq manual](https://jqlang.github.io/jq/manual/) and [jq Cookbook](https://github.com/jqlang/jq/wiki/jq-Cookbook). Each limitation has corresponding skipped test cases in `pkg/jq/sandbox_test.go`.
+
+### 1. Comma inside bracket access
+
+**Affected expressions:** `del(.[1, 2])`, `path(.[1, 2])`
+
+**Root cause:** `parseBracketAccess` (`parser.go:869`) calls `parseExp()` for the index expression, which parses pipe-level expressions but not commas. In jq, `.[1, 2]` is valid — the comma operator generates multiple index values within the bracket.
+
+**Fix:** Use `parseQuery()` or a comma-aware variant instead of `parseExp()` for bracket index expressions. Must also update the completion parser's bracket access handling to match.
+
+**Priority:** Medium — used in real-world `del` and `path` expressions, but uncommon in interactive completion scenarios.
+
+### 2. Module system (`import` / `include` / `module`)
+
+**Affected expressions:** `include "library"`, `import "library" as lib`, `import "library" as lib; lib::walk(.)`
+
+**Root cause:** `parseQuery` (`parser.go:168`) explicitly rejects these with `"module system not yet supported"`. This was a deliberate deferral (see Open Question 1 and Phase 1 scope decision).
+
+**Fix:** Add `parseImport()`, `parseInclude()`, and `parseModule()` to `parseQuery()`. Handle `include "file" {search: "..."}` metadata blocks, `import "file" as $name` / `import "file" as Name` (module vs variable), and `Name::function` scope resolution in postfix/primary parsing.
+
+**Priority:** Low — rare in command-line usage, primarily relevant for `.jq` library files.
+
+### 3. `try`/`catch` with `if` handler
+
+**Affected expression:** `try repeat(exp) catch if .=="break" then empty else error end`
+
+**Root cause:** `parseTry` (`parser.go:1494`) parses the catch handler with `parsePratt(precPostfix)`, which handles binary operators and postfix but not grammar-level constructs like `if`. The `if` expression is parsed at the primary level (`parsePrimary`), which is below the Pratt parser entry point.
+
+**Fix:** Use `parseExp()` or `parseQuery()` for the catch handler instead of `parsePratt(precPostfix)`, allowing full expressions including `if`/`then`/`else`/`end`, `reduce`, `foreach`, `try`, and `def`. Must also update the completion parser's catch handling to match.
+
+**Priority:** Medium — the `try ... catch if ...` pattern appears in real-world jq programs for selective error handling.
