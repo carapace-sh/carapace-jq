@@ -1,6 +1,6 @@
 package jq
 
-// Sandbox tests for complex and edge-case jq expressions sourced from the
+// Edge-case parse tests for complex jq expressions sourced from the
 // jq manual (https://jqlang.github.io/jq/manual/) and the jq Cookbook
 // (https://github.com/jqlang/jq/wiki/jq-Cookbook).
 //
@@ -13,16 +13,16 @@ import (
 	"testing"
 )
 
-// sandboxCase groups a descriptive name with a jq expression and an optional
+// edgeCase groups a descriptive name with a jq expression and an optional
 // skip reason.  When skipReason is non-empty the test is skipped instead of
 // failing.
-type sandboxCase struct {
+type edgeCase struct {
 	name       string
 	expr       string
 	skipReason string
 }
 
-func runSandboxCases(t *testing.T, cases []sandboxCase) {
+func runEdgeCases(t *testing.T, cases []edgeCase) {
 	t.Helper()
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -39,7 +39,7 @@ func runSandboxCases(t *testing.T, cases []sandboxCase) {
 
 // ----- String interpolation -----
 
-var stringInterpolationCases = []sandboxCase{
+var stringInterpolationCases = []edgeCase{
 	{"adjacent interpolations", `"\(.a)\(.b)"`, ""},
 	{"interp at start", `"\(.x)hello"`, ""},
 	{"interp at end", `"hello\(.x)"`, ""},
@@ -60,13 +60,13 @@ var stringInterpolationCases = []sandboxCase{
 	{"loc in error", `try error("\($__loc__)") catch .`, ""},
 }
 
-func TestSandboxStringInterpolation(t *testing.T) {
-	runSandboxCases(t, stringInterpolationCases)
+func TestEdgeCaseStringInterpolation(t *testing.T) {
+	runEdgeCases(t, stringInterpolationCases)
 }
 
 // ----- @format strings -----
 
-var formatCases = []sandboxCase{
+var formatCases = []edgeCase{
 	{"@base64", "@base64", ""},
 	{"@base64d", "@base64d", ""},
 	{"@csv", "@csv", ""},
@@ -83,13 +83,13 @@ var formatCases = []sandboxCase{
 	{"@base64 then pipe", "@base64 | .", ""},
 }
 
-func TestSandboxFormats(t *testing.T) {
-	runSandboxCases(t, formatCases)
+func TestEdgeCaseFormats(t *testing.T) {
+	runEdgeCases(t, formatCases)
 }
 
 // ----- Numbers -----
 
-var numberCases = []sandboxCase{
+var numberCases = []edgeCase{
 	{"integer", "42", ""},
 	{"decimal", "3.14", ""},
 	{"exponent lowercase", "1e10", ""},
@@ -108,13 +108,13 @@ var numberCases = []sandboxCase{
 	{"negate after pipe", ".a | -.b", ""},
 }
 
-func TestSandboxNumbers(t *testing.T) {
-	runSandboxCases(t, numberCases)
+func TestEdgeCaseNumbers(t *testing.T) {
+	runEdgeCases(t, numberCases)
 }
 
 // ----- Chained postfix operations -----
 
-var postfixCases = []sandboxCase{
+var postfixCases = []edgeCase{
 	{"field then iterator then field", ".foo[].bar", ""},
 	{"index then field", ".[0].bar", ""},
 	{"iterator then optional", ".[]?", ""},
@@ -136,13 +136,13 @@ var postfixCases = []sandboxCase{
 	{"recursive with objects and keys", `[.. | objects | keys[]] | unique`, ""},
 }
 
-func TestSandboxPostfix(t *testing.T) {
-	runSandboxCases(t, postfixCases)
+func TestEdgeCasePostfix(t *testing.T) {
+	runEdgeCases(t, postfixCases)
 }
 
 // ----- Variable then postfix -----
 
-var variablePostfixCases = []sandboxCase{
+var variablePostfixCases = []edgeCase{
 	{"var then field", "$obj.foo", ""},
 	{"var then index", "$arr[0]", ""},
 	{"var then iterator", "$arr[]", ""},
@@ -158,13 +158,13 @@ var variablePostfixCases = []sandboxCase{
 	{"var as function arg", "map($x)", ""},
 }
 
-func TestSandboxVariablePostfix(t *testing.T) {
-	runSandboxCases(t, variablePostfixCases)
+func TestEdgeCaseVariablePostfix(t *testing.T) {
+	runEdgeCases(t, variablePostfixCases)
 }
 
 // ----- Destructuring patterns -----
 
-var destructuringCases = []sandboxCase{
+var destructuringCases = []edgeCase{
 	{"array destructure", ". as [$a, $b] | $a + $b", ""},
 	{"object destructure", ". as {a: $x, b: $y} | $x", ""},
 	{"nested obj in array", ". as [$a, {b: $b}] | $a + $b", ""},
@@ -178,13 +178,13 @@ var destructuringCases = []sandboxCase{
 	{"complex destructure with nested array/obj", `.[] as {$a, $b, c: {$d}} ?// {$a, $b, c: [{$e}]} | {$a, $b, $d, $e}`, ""},
 }
 
-func TestSandboxDestructuring(t *testing.T) {
-	runSandboxCases(t, destructuringCases)
+func TestEdgeCaseDestructuring(t *testing.T) {
+	runEdgeCases(t, destructuringCases)
 }
 
 // ----- Def definitions -----
 
-var defCases = []sandboxCase{
+var defCases = []edgeCase{
 	{"simple def", "def increment: . + 1; increment", ""},
 	{"def with filter arg", "def map(f): [.[] | f]; map(. + 1)", ""},
 	{"def with value arg", "def addvalue($f): . + $f; addvalue(1)", ""},
@@ -206,13 +206,13 @@ var defCases = []sandboxCase{
 	{"range with nested def", `def range(init; upto; by): def _range: if (by > 0 and . < upto) or (by < 0 and . > upto) then ., ((.+by)|_range) else empty end; if init == upto then empty elif by == 0 then init else init|_range end; range(0; 10; 3)`, ""},
 }
 
-func TestSandboxDef(t *testing.T) {
-	runSandboxCases(t, defCases)
+func TestEdgeCaseDef(t *testing.T) {
+	runEdgeCases(t, defCases)
 }
 
 // ----- Reduce / foreach -----
 
-var reduceForeachCases = []sandboxCase{
+var reduceForeachCases = []edgeCase{
 	{"basic reduce", "reduce .[] as $item (0; . + $item)", ""},
 	{"reduce with destructure", "reduce .[] as [$i,$j] (0; . + $i * $j)", ""},
 	{"reduce with object destructure", `reduce .[] as {$x,$y} (null; .x += $x | .y += [$y])`, ""},
@@ -233,13 +233,13 @@ var reduceForeachCases = []sandboxCase{
 	{"reduce inputs", "reduce inputs as $i (0; . + $i)", ""},
 }
 
-func TestSandboxReduceForeach(t *testing.T) {
-	runSandboxCases(t, reduceForeachCases)
+func TestEdgeCaseReduceForeach(t *testing.T) {
+	runEdgeCases(t, reduceForeachCases)
 }
 
 // ----- If / then / elif / else -----
 
-var ifCases = []sandboxCase{
+var ifCases = []edgeCase{
 	{"simple if/else", `if . == 0 then "zero" else "nonzero" end`, ""},
 	{"if with elif", `if . == 0 then "zero" elif . == 1 then "one" else "many" end`, ""},
 	{"multiple elif", `if . == 0 then "zero" elif . == 1 then "one" elif . == 2 then "two" else "many" end`, ""},
@@ -256,13 +256,13 @@ var ifCases = []sandboxCase{
 	{"multiline if", "if . == 0 then\n  \"zero\"\nelif . == 1 then\n  \"one\"\nelse\n  \"many\"\nend", ""},
 }
 
-func TestSandboxIf(t *testing.T) {
-	runSandboxCases(t, ifCases)
+func TestEdgeCaseIf(t *testing.T) {
+	runEdgeCases(t, ifCases)
 }
 
 // ----- Try / catch -----
 
-var tryCases = []sandboxCase{
+var tryCases = []edgeCase{
 	{"basic try", "try .a", ""},
 	{"try catch", "try .a catch .", ""},
 	{"try with pipe", "try .a | .b", ""},
@@ -281,13 +281,13 @@ var tryCases = []sandboxCase{
 	{"try with repeat error", `[repeat(.*2, error)?]`, ""},
 }
 
-func TestSandboxTry(t *testing.T) {
-	runSandboxCases(t, tryCases)
+func TestEdgeCaseTry(t *testing.T) {
+	runEdgeCases(t, tryCases)
 }
 
 // ----- Operators and precedence -----
 
-var operatorCases = []sandboxCase{
+var operatorCases = []edgeCase{
 	{"comma vs pipe", "true, false | not", ""},
 	{"alternative vs comma", "false, 1 // 2", ""},
 	{"mul vs add", "1 + 2 * 3", ""},
@@ -305,13 +305,13 @@ var operatorCases = []sandboxCase{
 	{"chained alt assign", ".a //= .b //= .c", ""},
 }
 
-func TestSandboxOperators(t *testing.T) {
-	runSandboxCases(t, operatorCases)
+func TestEdgeCaseOperators(t *testing.T) {
+	runEdgeCases(t, operatorCases)
 }
 
 // ----- Assignment operators -----
 
-var assignmentCases = []sandboxCase{
+var assignmentCases = []edgeCase{
 	{"plain assign", ".foo = 42", ""},
 	{"update assign", ".foo |= . + 1", ""},
 	{"add assign", ".foo += 1", ""},
@@ -332,13 +332,13 @@ var assignmentCases = []sandboxCase{
 	{"nested object with assign and comma", `{a:{b:{c:1}}} | (.a.b|=3), .`, ""},
 }
 
-func TestSandboxAssignments(t *testing.T) {
-	runSandboxCases(t, assignmentCases)
+func TestEdgeCaseAssignments(t *testing.T) {
+	runEdgeCases(t, assignmentCases)
 }
 
 // ----- Objects -----
 
-var objectCases = []sandboxCase{
+var objectCases = []edgeCase{
 	{"empty object", "{}", ""},
 	{"simple key value", "{a: 42}", ""},
 	{"multiple keys", "{a: 42, b: 17}", ""},
@@ -367,13 +367,13 @@ var objectCases = []sandboxCase{
 	{"with_entries with sub", `walk( if type == "object" then with_entries( .key |= sub( "^_+"; "" ) ) else . end )`, ""},
 }
 
-func TestSandboxObjects(t *testing.T) {
-	runSandboxCases(t, objectCases)
+func TestEdgeCaseObjects(t *testing.T) {
+	runEdgeCases(t, objectCases)
 }
 
 // ----- Arrays -----
 
-var arrayCases = []sandboxCase{
+var arrayCases = []edgeCase{
 	{"empty array", "[]", ""},
 	{"array of numbers", "[1, 2, 3]", ""},
 	{"array with pipe in element", "[.a | .b]", ""},
@@ -393,13 +393,13 @@ var arrayCases = []sandboxCase{
 	{"array with first", "first(.[])", ""},
 }
 
-func TestSandboxArrays(t *testing.T) {
-	runSandboxCases(t, arrayCases)
+func TestEdgeCaseArrays(t *testing.T) {
+	runEdgeCases(t, arrayCases)
 }
 
 // ----- Comments -----
 
-var commentCases = []sandboxCase{
+var commentCases = []edgeCase{
 	{"trailing comment", ".foo # comment", ""},
 	{"whole line comment", "# whole line comment\n.foo", ""},
 	{"multi-line with comment", ".foo # comment\n| .bar", ""},
@@ -416,13 +416,13 @@ var commentCases = []sandboxCase{
 	{"mixed whitespace and comment", ".foo \n\t # comment\n | .bar", ""},
 }
 
-func TestSandboxComments(t *testing.T) {
-	runSandboxCases(t, commentCases)
+func TestEdgeCaseComments(t *testing.T) {
+	runEdgeCases(t, commentCases)
 }
 
 // ----- String escapes -----
 
-var stringEscapeCases = []sandboxCase{
+var stringEscapeCases = []edgeCase{
 	{"newline escape", `"hello\nworld"`, ""},
 	{"tab escape", `"tab\there"`, ""},
 	{"quote escape", `"quote\"here"`, ""},
@@ -438,13 +438,13 @@ var stringEscapeCases = []sandboxCase{
 	{"control chars combined", `"\r\t\f\b"`, ""},
 }
 
-func TestSandboxStringEscapes(t *testing.T) {
-	runSandboxCases(t, stringEscapeCases)
+func TestEdgeCaseStringEscapes(t *testing.T) {
+	runEdgeCases(t, stringEscapeCases)
 }
 
 // ----- Quoted field access -----
 
-var quotedFieldCases = []sandboxCase{
+var quotedFieldCases = []edgeCase{
 	{"dollar sign in field", `."foo$"`, ""},
 	{"space in field", `."foo bar"`, ""},
 	{"unicode field", `."日本語"`, ""},
@@ -452,13 +452,13 @@ var quotedFieldCases = []sandboxCase{
 	{"nested quoted fields", `.foo."bar".baz`, ""},
 }
 
-func TestSandboxQuotedFields(t *testing.T) {
-	runSandboxCases(t, quotedFieldCases)
+func TestEdgeCaseQuotedFields(t *testing.T) {
+	runEdgeCases(t, quotedFieldCases)
 }
 
 // ----- Label / break -----
 
-var labelCases = []sandboxCase{
+var labelCases = []edgeCase{
 	{"label with reduce", "label $out | reduce .[] as $item (0; . + $item)", ""},
 	{"label simple", "label $out | .", ""},
 	{"label with break", "label $out | reduce .[] as $item (0; if . > 10 then break $out else . + $item end)", ""},
@@ -467,13 +467,13 @@ var labelCases = []sandboxCase{
 	{"break in nested label", "label $out | label $inner | if .a then break $inner else break $out end", ""},
 }
 
-func TestSandboxLabel(t *testing.T) {
-	runSandboxCases(t, labelCases)
+func TestEdgeCaseLabel(t *testing.T) {
+	runEdgeCases(t, labelCases)
 }
 
 // ----- Function calls -----
 
-var functionCallCases = []sandboxCase{
+var functionCallCases = []edgeCase{
 	{"no args", "keys", ""},
 	{"one arg", "map(. + 1)", ""},
 	{"two semicolon args", "limit(3; .[])", ""},
@@ -517,13 +517,13 @@ var functionCallCases = []sandboxCase{
 	{"path of paths", `[path(..)]`, ""},
 }
 
-func TestSandboxFunctionCalls(t *testing.T) {
-	runSandboxCases(t, functionCallCases)
+func TestEdgeCaseFunctionCalls(t *testing.T) {
+	runEdgeCases(t, functionCallCases)
 }
 
 // ----- Regex functions (sub/gsub/test/match/capture/scan/split) -----
 
-var regexCases = []sandboxCase{
+var regexCases = []edgeCase{
 	{"sub", `sub("^ +";"")`, ""},
 	{"gsub", `gsub("(?<x>.)[^a]*"; "+\(.x)-")`, ""},
 	{"match", `match("foo (?<bar123>bar)? foo"; "ig")`, ""},
@@ -538,25 +538,25 @@ var regexCases = []sandboxCase{
 	{"sort_by with scan and tonumber", `sort_by(.id|scan("[0-9]*$")|tonumber)`, ""},
 }
 
-func TestSandboxRegex(t *testing.T) {
-	runSandboxCases(t, regexCases)
+func TestEdgeCaseRegex(t *testing.T) {
+	runEdgeCases(t, regexCases)
 }
 
 // ----- Whitespace and formatting -----
 
-var whitespaceCases = []sandboxCase{
+var whitespaceCases = []edgeCase{
 	{"lots of spaces", "  .foo   |   .bar  ", ""},
 	{"newlines in pipe", ".foo\n|\n.bar", ""},
 	{"tabs", ".foo\t|\t.bar", ""},
 }
 
-func TestSandboxWhitespace(t *testing.T) {
-	runSandboxCases(t, whitespaceCases)
+func TestEdgeCaseWhitespace(t *testing.T) {
+	runEdgeCases(t, whitespaceCases)
 }
 
 // ----- Nested parentheses -----
 
-var parenthesizedCases = []sandboxCase{
+var parenthesizedCases = []edgeCase{
 	{"nested parens", "((.a))", ""},
 	{"parens with comma", "(.a, (.b, .c))", ""},
 	{"parens with def", "(def f: .; f)", ""},
@@ -565,13 +565,13 @@ var parenthesizedCases = []sandboxCase{
 	{"comma in parens then pipe", "(.foo, .bar) | .baz", ""},
 }
 
-func TestSandboxParenthesized(t *testing.T) {
-	runSandboxCases(t, parenthesizedCases)
+func TestEdgeCaseParenthesized(t *testing.T) {
+	runEdgeCases(t, parenthesizedCases)
 }
 
 // ----- Index and slice variations -----
 
-var indexSliceCases = []sandboxCase{
+var indexSliceCases = []edgeCase{
 	{"index with number", ".[0]", ""},
 	{"index with negative", ".[-1]", ""},
 	{"index with string", `.["foo"]`, ""},
@@ -586,13 +586,13 @@ var indexSliceCases = []sandboxCase{
 	{"slice with variables", ".[$a:$b]", ""},
 }
 
-func TestSandboxIndexSlice(t *testing.T) {
-	runSandboxCases(t, indexSliceCases)
+func TestEdgeCaseIndexSlice(t *testing.T) {
+	runEdgeCases(t, indexSliceCases)
 }
 
 // ----- Known limitations (parser does not support these yet) -----
 
-var knownLimitationCases = []sandboxCase{
+var knownLimitationCases = []edgeCase{
 	// Comma inside bracket access: .[1, 2] is valid jq but the parser
 	// currently uses parseExp (no comma) for bracket contents.
 	{"comma in bracket access", "del(.[1, 2])", "parser limitation: comma inside bracket access not supported"},
@@ -609,13 +609,13 @@ var knownLimitationCases = []sandboxCase{
 	{"leading dot number", ".5", "not valid jq (requires 0.5)"},
 }
 
-func TestSandboxKnownLimitations(t *testing.T) {
-	runSandboxCases(t, knownLimitationCases)
+func TestEdgeCaseKnownLimitations(t *testing.T) {
+	runEdgeCases(t, knownLimitationCases)
 }
 
 // ----- Complex real-world programs from the jq Cookbook -----
 
-var cookbookCases = []sandboxCase{
+var cookbookCases = []edgeCase{
 	{"bag", "reduce .[] as $x ({}; .[$x|type][$x|tostring] += 1)", ""},
 	{"bag function def", `def bag(stream): reduce stream as $x ({}; .[$x|type][$x|tostring] += 1); bag(.[])`, ""},
 	{"maximal_by", `def maximal_by(f): (map(f) | max) as $mx | .[] | select(f == $mx); maximal_by(.x)`, ""},
@@ -651,13 +651,13 @@ var cookbookCases = []sandboxCase{
 	{"foreach extract", `foreach (inputs, null) as $line (0; if $line.n then .+1 else . end; if $line == null then . else $line.n // empty end)`, ""},
 }
 
-func TestSandboxCookbook(t *testing.T) {
-	runSandboxCases(t, cookbookCases)
+func TestEdgeCaseCookbook(t *testing.T) {
+	runEdgeCases(t, cookbookCases)
 }
 
 // ----- Error cases (should produce parse errors) -----
 
-func TestSandboxErrorCases(t *testing.T) {
+func TestEdgeCaseErrorCases(t *testing.T) {
 	errorCases := []string{
 		"",                        // empty input
 		".foo |",                  // trailing pipe
