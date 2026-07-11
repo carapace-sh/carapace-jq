@@ -135,7 +135,7 @@ func ActionBuiltins() carapace.Action {
 		).Suffix("(").UidF(Uid("builtin", "args", "true"))
 
 		return carapace.Batch(zeroArg, withArgs).ToA()
-	}).Tag("jq builtins")
+	}).Tag("builtins")
 }
 
 // ActionKeywords completes jq keywords that start expressions.
@@ -148,7 +148,7 @@ func ActionKeywords() carapace.Action {
 		"def", "Define a function",
 		"label", "Define a label for break",
 		"break", "Break out of a labeled expression",
-	).UidF(Uid("keyword"))
+	).Tag("keywords").UidF(Uid("keyword"))
 }
 
 // ActionKeywordTokens completes jq keyword tokens that appear within
@@ -161,7 +161,7 @@ func ActionKeywordTokens() carapace.Action {
 		"end", "End of if expression",
 		"catch", "Error handler for try",
 		"as", "Variable binding",
-	).UidF(Uid("keyword-token")).NoSpace()
+	).Tag("keyword tokens").UidF(Uid("keyword-token")).NoSpace()
 }
 
 // ActionLiterals completes jq literal values.
@@ -170,7 +170,7 @@ func ActionLiterals() carapace.Action {
 		"true", "Boolean true",
 		"false", "Boolean false",
 		"null", "Null value",
-	).UidF(Uid("literal"))
+	).Tag("literals").UidF(Uid("literal"))
 }
 
 // ActionSpecialFilters completes special filter values like . and ..
@@ -178,7 +178,7 @@ func ActionSpecialFilters() carapace.Action {
 	return carapace.ActionValuesDescribed(
 		".", "Identity",
 		"..", "Recursive descent",
-	).UidF(Uid("special-filter"))
+	).Tag("special filters").UidF(Uid("special-filter"))
 }
 
 // ActionFormatStrings completes @format names.
@@ -193,7 +193,7 @@ func ActionFormatStrings() carapace.Action {
 		"@sh", "POSIX shell quoting",
 		"@base64", "Base64 encode",
 		"@base64d", "Base64 decode",
-	).UidF(Uid("format-string"))
+	).Tag("format strings").UidF(Uid("format-string"))
 }
 
 // ActionOperators completes operators valid at a given position.

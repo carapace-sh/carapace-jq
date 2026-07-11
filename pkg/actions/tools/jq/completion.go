@@ -161,7 +161,7 @@ func actionForKeywordTokens(ctx *jqparser.CompletionContext) carapace.Action {
 		for _, kw := range ctx.ValidKeywords {
 			described = append(described, kw, descs[kw])
 		}
-		return carapace.ActionValuesDescribed(described...).UidF(Uid("keyword-token")).NoSpace()
+		return carapace.ActionValuesDescribed(described...).Tag("keyword tokens").UidF(Uid("keyword-token")).NoSpace()
 	}
 	return ActionKeywordTokens()
 }
