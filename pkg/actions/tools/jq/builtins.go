@@ -181,8 +181,8 @@ func ActionSpecialFilters() carapace.Action {
 	).Tag("special filters").UidF(Uid("special-filter"))
 }
 
-// ActionFormatStrings completes @format names.
-func ActionFormatStrings() carapace.Action {
+// ActionFormats completes jq @format strings (e.g. @text, @json, @base64d).
+func ActionFormats() carapace.Action {
 	return carapace.ActionValuesDescribed(
 		"@text", "Convert to string with tostring",
 		"@json", "Serialize as JSON",
@@ -193,7 +193,7 @@ func ActionFormatStrings() carapace.Action {
 		"@sh", "POSIX shell quoting",
 		"@base64", "Base64 encode",
 		"@base64d", "Base64 decode",
-	).Tag("format strings").UidF(Uid("format-string"))
+	).Tag("formats").UidF(Uid("format"))
 }
 
 // ActionOperators completes operators valid at a given position.
