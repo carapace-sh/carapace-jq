@@ -34,11 +34,13 @@ carapace-jq/
 │   │   ├── completion_parser.go   # Completion parser: ParseForCompletion()
 │   │   ├── jq_test.go             # Parser tests
 │   │   ├── completion_test.go     # Completion parser tests
-│   │   └── sandbox_test.go        # Edge-case tests from jq manual/cookbook
+│   │   └── edgecase_test.go       # Edge-case parse tests from jq manual/cookbook
 │   └── actions/tools/jq/
 │       ├── builtins.go            # Static action definitions (builtin functions, keywords, operators)
 │       ├── completion.go          # Completion wiring: maps CompletionContext → carapace actions
-│       └── uid.go                 # UID generation for action deduplication
+│       ├── uid.go                 # UID generation for action deduplication
+│       ├── completion_test.go     # Action unit tests (format values, no double-at)
+│       └── sandbox_test.go        # Sandbox tests for ActionFilters at cursor positions
 ├── man/jq/                        # YAML man pages for completion value UIDs
 ├── skills/jq/                     # (existing) AI agent reference documentation
 ├── go.mod
