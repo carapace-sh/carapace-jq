@@ -31,15 +31,6 @@ func assertHasOperator(t *testing.T, ctx *CompletionContext, op string) {
 	t.Errorf("expected operator %q not found in %v", op, ctx.ValidOperators)
 }
 
-func assertNoOperator(t *testing.T, ctx *CompletionContext, op string) {
-	t.Helper()
-	for _, o := range ctx.ValidOperators {
-		if o.Op == op {
-			t.Errorf("operator %q should not be in %v", op, ctx.ValidOperators)
-			return
-		}
-	}
-}
 
 func TestCompletionEmpty(t *testing.T) {
 	ctx := ParseForCompletion("")

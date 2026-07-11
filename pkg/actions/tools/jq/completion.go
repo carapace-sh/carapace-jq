@@ -157,10 +157,8 @@ func actionForKeywordTokens(ctx *jqparser.CompletionContext) carapace.Action {
 			"catch": "Error handler for try",
 			"as":    "Variable binding",
 		}
-		vals := make([]string, 0, len(ctx.ValidKeywords))
 		described := make([]string, 0, len(ctx.ValidKeywords)*2)
 		for _, kw := range ctx.ValidKeywords {
-			vals = append(vals, kw)
 			described = append(described, kw, descs[kw])
 		}
 		return carapace.ActionValuesDescribed(described...).UidF(Uid("keyword-token")).NoSpace()

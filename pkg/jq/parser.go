@@ -84,14 +84,6 @@ func (p *parser) peek() rune {
 	return r
 }
 
-// peekAt looks ahead n bytes from current position (byte-based, not rune-based).
-func (p *parser) peekByte(offset int) byte {
-	if p.pos+offset >= len(p.input) {
-		return 0
-	}
-	return p.input[p.pos+offset]
-}
-
 func (p *parser) advance() rune {
 	if p.pos >= len(p.input) {
 		return 0
@@ -141,19 +133,6 @@ func (p *parser) matchString(s string) bool {
 	}
 	return p.input[p.pos:p.pos+len(s)] == s
 }
-
-func (p *parser) consumeString(s string) bool {
-	if p.matchString(s) {
-		p.pos += len(s)
-		p.lastContent = p.pos
-		return true
-	}
-	return false
-}
-
-func (p *parser) save() int { return p.pos }
-
-func (p *parser) restore(pos int) { p.pos = pos }
 
 // --- Operator precedence constants ---
 // Higher = tighter binding, matching jq's parser.y precedence.

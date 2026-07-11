@@ -59,9 +59,6 @@ type compParser struct {
 
 	// parenDepth tracks nested parentheses
 	parenDepth int
-
-	// lastExpr is the last parsed expression
-	lastExpr *Expression
 }
 
 type funcState struct {

@@ -68,27 +68,6 @@ func isKeyword(s string) bool {
 	return jqKeywords[s]
 }
 
-func isFunctionName(s string) bool {
-	if len(s) == 0 {
-		return false
-	}
-	if isKeyword(s) {
-		return false
-	}
-	for i, ch := range s {
-		if i == 0 {
-			if !isIdentifierStart(ch) {
-				return false
-			}
-		} else {
-			if !isIdentifierPart(ch) {
-				return false
-			}
-		}
-	}
-	return true
-}
-
 // scanIdentifier scans an identifier starting at the current position.
 // Returns the identifier text and true if found.
 func (p *parser) scanIdentifier() (string, bool) {
