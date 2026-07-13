@@ -576,8 +576,8 @@ func TestSandboxAsBindingPattern(t *testing.T) {
 		// ".foo as $" — $ already typed, parser expects pipe after pattern
 		// partialToken="$", action=ActionValues("|").NoSpace(), prefix=".foo as "
 		// FilterPrefix(".foo as $") removes "|" since ".foo as |" doesn't start with ".foo as $"
-		// So actual is empty — just verify it doesn't return expression values
-		s.Run(".foo as $").ExpectNot(expressionAction())
+		// So actual is empty — verify it matches the pipe action (not expression values)
+		s.Run(".foo as $").Expect(carapace.ActionValues("|").NoSpace().Prefix(".foo as "))
 	})
 }
 

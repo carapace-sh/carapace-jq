@@ -7,7 +7,7 @@ import (
 // ActionBuiltins completes jq builtin function names.
 func ActionBuiltins() carapace.Action {
 	return carapace.ActionCallback(func(c carapace.Context) carapace.Action {
-		// Zero-argument builtins (with () suffix)
+		// Zero-argument builtins (called without parentheses in jq)
 		zeroArg := carapace.ActionValuesDescribed(
 			"empty", "Produces no output",
 			"error", "Produces an error with the input as message",
@@ -51,14 +51,31 @@ func ActionBuiltins() carapace.Action {
 			"leaf_paths", "Outputs all paths to leaf values",
 			"debug", "Writes debug info to stderr, passes input through",
 			"stderr", "Outputs to stderr",
-			"getpath", "Gets values at paths",
-			"path", "Outputs paths matched by expression",
-			"del", "Deletes values at paths",
-			"delpaths", "Deletes multiple paths",
-			"pick", "Projects specified paths",
-		).Suffix("()").UidF(Uid("builtin", "args", "false"))
+			"floor", "Round down to nearest integer",
+			"sqrt", "Square root",
+			"fabs", "Floating-point absolute value",
+			"round", "Round to nearest integer",
+			"abs", "Absolute value",
+			"now", "Current epoch time",
+			"fromdate", "Parse ISO 8601 date",
+			"todate", "Format as ISO 8601 date",
+			"fromdateiso8601", "Parse ISO 8601 date",
+			"todateiso8601", "Format as ISO 8601 date",
+			"gmtime", "Convert epoch to broken-down time (UTC)",
+			"localtime", "Convert epoch to broken-down time (local)",
+			"mktime", "Convert broken-down time to epoch",
+			"ascii", "Convert character to codepoint",
+			"transpose", "Transpose a matrix",
+			"first", "Get first element of the array at .",
+			"last", "Get last element of the array at .",
+			"any", "True if any element is truthy",
+			"all", "True if all elements are truthy",
+			"flatten", "Flatten nested arrays by one level",
+			"recurse", "Recursively descend into all values",
+			"combinations", "Cartesian product of inputs",
+		).UidF(Uid("builtin", "args", "false"))
 
-		// One-or-more-argument builtins (with ( suffix)
+		// One-or-more-argument builtins (with ( suffix, no trailing space)
 		withArgs := carapace.ActionValuesDescribed(
 			"map", "Apply filter to each element: [.[] | f]",
 			"map_values", "Apply filter to each value: .[] |= f",
@@ -88,19 +105,19 @@ func ActionBuiltins() carapace.Action {
 			"any", "True if any element satisfies the filter",
 			"all", "True if all elements satisfy the filter",
 			"range", "Generate a range of numbers",
-			"floor", "Round down to nearest integer",
-			"sqrt", "Square root",
-			"fabs", "Floating-point absolute value",
-			"round", "Round to nearest integer",
 			"getpath", "Get values at given path array",
 			"setpath", "Set value at given path",
 			"paths", "Output paths matching filter",
+			"path", "Outputs paths matched by expression",
+			"del", "Deletes values at paths",
+			"delpaths", "Deletes multiple paths",
+			"pick", "Projects specified paths",
 			"index", "Find first index of value",
 			"rindex", "Find last index of value",
 			"indices", "Find all indices of value",
 			"nth", "Get nth element of a generator or array",
-			"first", "Get first output of generator, or first of array",
-			"last", "Get last output of generator, or last of array",
+			"first", "Get first output of generator expression",
+			"last", "Get last output of generator expression",
 			"limit", "Take first n outputs of a generator",
 			"skip", "Skip first n outputs of a generator",
 			"isempty", "True if generator produces no output",
@@ -109,30 +126,18 @@ func ActionBuiltins() carapace.Action {
 			"until", "Repeat until condition is true",
 			"recurse", "Recursively apply filter",
 			"walk", "Apply filter to every value recursively",
-			"flatten", "Flatten nested arrays",
-			"transpose", "Transpose a matrix",
+			"flatten", "Flatten nested arrays to given depth",
 			"bsearch", "Binary search in a sorted array",
-			"ascii", "Convert character to codepoint",
 			"combinations", "Cartesian product of generators",
-			"ltrimstr", "Remove prefix from string",
 			"strftime", "Format time with strftime",
 			"strflocaltime", "Format time in local timezone",
 			"strptime", "Parse time string",
-			"mktime", "Convert broken-down time to epoch",
-			"gmtime", "Convert epoch to broken-down time (UTC)",
-			"localtime", "Convert epoch to broken-down time (local)",
-			"now", "Current epoch time",
-			"fromdate", "Parse ISO 8601 date",
-			"todate", "Format as ISO 8601 date",
-			"fromdateiso8601", "Parse ISO 8601 date",
-			"todateiso8601", "Format as ISO 8601 date",
 			"INDEX", "Index array by key (SQL-style)",
 			"JOIN", "Join two arrays (SQL-style)",
 			"IN", "Check if input is in a set (SQL-style)",
-			"getpath", "Get value at path",
 			"with_entries", "Apply filter to each entry: to_entries | map(f) | from_entries",
-			"abs", "Absolute value",
-		).Suffix("(").UidF(Uid("builtin", "args", "true"))
+			"error", "Produce error with custom message",
+		).Suffix("(").NoSpace().UidF(Uid("builtin", "args", "true"))
 
 		return carapace.Batch(zeroArg, withArgs).ToA()
 	}).Tag("builtins")
