@@ -3,8 +3,8 @@ module github.com/carapace-sh/carapace-jq
 go 1.26.2
 
 require (
-	github.com/carapace-sh/carapace v1.13.2
-	github.com/carapace-sh/carapace-spec v1.8.0
+	github.com/carapace-sh/carapace v1.15.3
+	github.com/carapace-sh/carapace-spec v1.8.1
 	github.com/spf13/cobra v1.10.2
 )
 
