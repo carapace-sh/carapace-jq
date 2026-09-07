@@ -277,7 +277,7 @@ var tryCases = []edgeCase{
 	{"optional after array", "[1, 2, 3]?", ""},
 	{"tonumber optional", "[.[] | tonumber?]", ""},
 	{"optional field in recursive", ".. | .a?", ""},
-	{"try catch with if", `try repeat(exp) catch if .=="break" then empty else error end`, "parser limitation: catch handler doesn't support if expressions"},
+	{"try catch with if", `try repeat(exp) catch if .=="break" then empty else error end`, ""},
 	{"try with repeat error", `[repeat(.*2, error)?]`, ""},
 }
 
@@ -592,11 +592,6 @@ func TestEdgeCaseIndexSlice(t *testing.T) {
 // ----- Known limitations (parser does not support these yet) -----
 
 var knownLimitationCases = []edgeCase{
-	// Comma inside bracket access: .[1, 2] is valid jq but the parser
-	// currently uses parseExp (no comma) for bracket contents.
-	{"comma in bracket access", "del(.[1, 2])", "parser limitation: comma inside bracket access not supported"},
-	{"path with comma in bracket", "path(.[1, 2])", "parser limitation: comma inside bracket access not supported"},
-
 	// Module system: import/include/module are explicitly not yet supported.
 	{"include", `include "library"`, "parser limitation: module system not yet supported"},
 	{"include with search", `include "sigma" {search: "~/jq"}`, "parser limitation: module system not yet supported"},
@@ -688,6 +683,44 @@ var keywordFieldCases = []edgeCase{
 
 func TestEdgeCaseKeywordFields(t *testing.T) {
 	runEdgeCases(t, keywordFieldCases)
+}
+
+// ----- Object pattern keys -----
+// The jq grammar allows: $var shorthand, $var: pattern, key: pattern,
+// keyword: pattern, "string": pattern, and (expr): pattern.
+
+var objectPatternCases = []edgeCase{
+	{"string key pattern", `. as {"foo": $x} | $x`, ""},
+	{"string keyword key pattern", `. as {"if": $x} | $x`, ""},
+	{"expression key pattern", `. as {("foo"): $x} | $x`, ""},
+	{"binding with value pattern", `. as {$foo: [$a]} | $a`, ""},
+	{"binding with obj value pattern", `. as {$foo: {bar: $b}} | $b`, ""},
+	{"keyword key pattern", `. as {if: $x} | $x`, ""},
+	{"alternative with string keys", `. as {"foo": $x} ?// {"bar": $x} | $x`, ""},
+}
+
+func TestEdgeCaseObjectPatterns(t *testing.T) {
+	runEdgeCases(t, objectPatternCases)
+}
+
+// ----- Bracket access with full Query -----
+// jq grammar: Term '[' Query ']' — commas and pipes allowed in brackets.
+
+var bracketQueryCases = []edgeCase{
+	{"comma in bracket access", "del(.[1, 2])", ""},
+	{"path with comma in bracket", "path(.[1, 2])", ""},
+	{"index with comma", ".[0, 1]", ""},
+	{"pipe in bracket", `.[.a | tostring]`, ""},
+	{"comma index on var", "$arr[0, 1]", ""},
+	// Array content is a single Query in jq:
+	// [1, 2 | .+1] means [(1,2) | .+1], not [1, (2 | .+1)]
+	{"array pipe applies to whole comma expr", "[1, 2 | . + 1]", ""},
+	{"array pipe after comma elements", "[.a, .b | tostring]", ""},
+	{"array nested comma pipe", "[1, 2, 3 | . * 2]", ""},
+}
+
+func TestEdgeCaseBracketQuery(t *testing.T) {
+	runEdgeCases(t, bracketQueryCases)
 }
 
 // ----- Complex real-world programs from the jq Cookbook -----

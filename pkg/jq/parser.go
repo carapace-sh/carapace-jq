@@ -453,20 +453,82 @@ func (p *parser) parseObjectPattern(start int) (*Expression, error) {
 			p.advance()
 			break
 		}
-		// Object pattern entries are: key: $var  or  $var (shorthand)
-		if p.peek() == '$' {
+		var entry ObjectEntry
+		switch {
+		case p.peek() == '$':
+			// $var shorthand or $var: pattern
 			p.advance()
 			name, ok := p.scanIdentifier()
 			if !ok {
 				return nil, p.syntaxError("expected variable name in object pattern")
 			}
-			entries = append(entries, ObjectEntry{
-				KeyKind: ObjectKeyShorthand,
-				KeyName: name,
-				Value:   &Expression{Kind: KindVariable, Span: Span{Start: p.pos - len(name) - 1, End: p.pos}, payload: &VariableExpr{Name: name}},
-			})
-		} else {
-			// key: $var
+			p.skipWhitespaceAndComments()
+			if !p.atEnd() && p.peek() == ':' {
+				p.advance()
+				p.skipWhitespaceAndComments()
+				val, err := p.parsePatternSingle()
+				if err != nil {
+					return nil, err
+				}
+				entry = ObjectEntry{KeyKind: ObjectKeyVariable, KeyName: name, Value: val}
+			} else {
+				entry = ObjectEntry{
+					KeyKind: ObjectKeyShorthand,
+					KeyName: name,
+					Value:   &Expression{Kind: KindVariable, Span: Span{Start: p.pos - len(name) - 1, End: p.pos}, payload: &VariableExpr{Name: name}},
+				}
+			}
+		case p.peek() == '"':
+			// "string": pattern
+			parts, err := p.parseStringLiteralValue()
+			if err != nil {
+				return nil, err
+			}
+			var name strings.Builder
+			for _, part := range parts {
+				if t, ok := part.(StringText); ok {
+					name.WriteString(t.Text)
+				} else {
+					return nil, p.syntaxError("string interpolation not allowed in object pattern key")
+				}
+			}
+			p.skipWhitespaceAndComments()
+			if p.atEnd() || p.peek() != ':' {
+				return nil, p.syntaxError("expected ':' in object pattern")
+			}
+			p.advance()
+			p.skipWhitespaceAndComments()
+			val, err := p.parsePatternSingle()
+			if err != nil {
+				return nil, err
+			}
+			entry = ObjectEntry{KeyKind: ObjectKeyString, KeyName: name.String(), Value: val}
+		case p.peek() == '(':
+			// (expr): pattern
+			p.advance()
+			p.skipWhitespaceAndComments()
+			keyExpr, err := p.parseQuery()
+			if err != nil {
+				return nil, err
+			}
+			p.skipWhitespaceAndComments()
+			if p.atEnd() || p.peek() != ')' {
+				return nil, p.syntaxError("expected ')' in object pattern key")
+			}
+			p.advance()
+			p.skipWhitespaceAndComments()
+			if p.atEnd() || p.peek() != ':' {
+				return nil, p.syntaxError("expected ':' in object pattern")
+			}
+			p.advance()
+			p.skipWhitespaceAndComments()
+			val, err := p.parsePatternSingle()
+			if err != nil {
+				return nil, err
+			}
+			entry = ObjectEntry{KeyKind: ObjectKeyExpression, Key: keyExpr, Value: val}
+		default:
+			// key: pattern (identifier or keyword key)
 			key, ok := p.scanIdentifier()
 			if !ok {
 				return nil, p.syntaxError("expected key or $var in object pattern")
@@ -481,12 +543,13 @@ func (p *parser) parseObjectPattern(start int) (*Expression, error) {
 			if err != nil {
 				return nil, err
 			}
-			entries = append(entries, ObjectEntry{
+			entry = ObjectEntry{
 				KeyKind: ObjectKeyBare,
 				KeyName: key,
 				Value:   val,
-			})
+			}
 		}
+		entries = append(entries, entry)
 		p.skipWhitespaceAndComments()
 		if !p.atEnd() && p.peek() == ',' {
 			p.advance()
@@ -895,10 +958,11 @@ func (p *parser) parseBracketAccess(base *Expression) *Expression {
 
 	// .[expr] or .[start:end] — index or slice
 	// First, try to parse an expression
+	// Bracket contents are a full Query in jq (commas and pipes allowed).
 	var firstExpr *Expression
 	if !p.atEnd() && p.peek() != ':' {
 		var err error
-		firstExpr, err = p.parseExp()
+		firstExpr, err = p.parseQuery()
 		if err != nil {
 			return nil
 		}
@@ -914,7 +978,7 @@ func (p *parser) parseBracketAccess(base *Expression) *Expression {
 		var endExpr *Expression
 		if !p.atEnd() && p.peek() != ']' {
 			var err error
-			endExpr, err = p.parseExp()
+			endExpr, err = p.parseQuery()
 			if err != nil {
 				return nil
 			}
@@ -1093,7 +1157,8 @@ func (p *parser) parsePrimary() (*Expression, error) {
 	return nil, p.syntaxErrorf("unexpected character %q", ch)
 }
 
-// parseArray parses [expr, expr, ...]
+// parseArray parses [Query] — in jq the array content is a single Query,
+// so pipes apply to the whole comma expression: [1, 2 | .+1] is [(1,2) | .+1].
 func (p *parser) parseArray(start int) (*Expression, error) {
 	p.advance() // consume [
 	var elements []*Expression
@@ -1106,25 +1171,16 @@ func (p *parser) parseArray(start int) (*Expression, error) {
 			payload: &ArrayExpr{Elements: elements},
 		}, nil
 	}
-	for {
-		p.skipWhitespaceAndComments()
-		elem, err := p.parseExp()
-		if err != nil {
-			return nil, err
-		}
-		elements = append(elements, elem)
-		p.skipWhitespaceAndComments()
-		if !p.atEnd() && p.peek() == ',' {
-			p.advance()
-			continue
-		}
-		p.skipWhitespaceAndComments()
-		if !p.atEnd() && p.peek() == ']' {
-			p.advance()
-			break
-		}
-		return nil, p.syntaxError("expected ',' or ']' in array")
+	elem, err := p.parseQuery()
+	if err != nil {
+		return nil, err
 	}
+	elements = append(elements, elem)
+	p.skipWhitespaceAndComments()
+	if p.atEnd() || p.peek() != ']' {
+		return nil, p.syntaxError("expected ']' in array")
+	}
+	p.advance()
 	return &Expression{
 		Kind:    KindArray,
 		Span:    Span{Start: start, End: p.pos},

@@ -355,9 +355,16 @@ func formatPattern(e *Expression) string {
 		oe := e.payload.(*ObjectExpr)
 		parts := make([]string, len(oe.Entries))
 		for i, entry := range oe.Entries {
-			if entry.KeyKind == ObjectKeyShorthand && entry.Value != nil && entry.Value.Kind == KindVariable {
+			switch {
+			case entry.KeyKind == ObjectKeyShorthand && entry.Value != nil && entry.Value.Kind == KindVariable:
 				parts[i] = "$" + entry.KeyName
-			} else {
+			case entry.KeyKind == ObjectKeyString:
+				parts[i] = fmt.Sprintf("%q: %s", entry.KeyName, formatPattern(entry.Value))
+			case entry.KeyKind == ObjectKeyExpression:
+				parts[i] = fmt.Sprintf("(%s): %s", formatExpr(entry.Key, precPipe), formatPattern(entry.Value))
+			case entry.KeyKind == ObjectKeyVariable:
+				parts[i] = fmt.Sprintf("$%s: %s", entry.KeyName, formatPattern(entry.Value))
+			default:
 				parts[i] = entry.KeyName + ": " + formatPattern(entry.Value)
 			}
 		}
