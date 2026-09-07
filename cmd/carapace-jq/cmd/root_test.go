@@ -128,6 +128,21 @@ var parseSuccessCases = []string{
 	`[.[] | tonumber?]`,
 	`if .name == "" then "empty" else .name end`,
 	`del(.foo)`,
+	// Semicolon as arg separator
+	`limit(3; .[])`,
+	`range(0; 10; 3)`,
+	`INDEX(.[]; .id)`,
+	// Keyword field names
+	`.if`,
+	`."foo bar"`,
+	// Pipe right-assoc in sub-expressions
+	`[.a | .b | .c]`,
+	`{x: .a | .b | .c}`,
+	`"\(.a | .b | .c)"`,
+	// Non-associative operators (single use, valid)
+	`.a == .b`,
+	`.a |= .b`,
+	`.foo //= .bar`,
 }
 
 func TestParseAllSuccessCases(t *testing.T) {

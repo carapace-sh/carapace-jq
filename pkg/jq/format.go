@@ -178,7 +178,7 @@ func formatExprInner(e *Expression) string {
 		for i, a := range fc.Args {
 			parts[i] = formatExpr(a, precPipe)
 		}
-		return fmt.Sprintf("%s(%s)", fc.Name, strings.Join(parts, ", "))
+		return fmt.Sprintf("%s(%s)", fc.Name, strings.Join(parts, "; "))
 	case KindIf:
 		return formatIf(e.payload.(*IfExpr))
 	case KindTry:
@@ -248,8 +248,9 @@ func formatExprInner(e *Expression) string {
 }
 
 func formatField(name string) string {
-	// Use .foo for simple identifiers, ."foo" for complex
-	if isIdentifier(name) && !isKeyword(name) {
+	// Use .foo for simple identifiers, ."foo" for complex names.
+	// Keywords are valid field names in jq and don't need quoting.
+	if isIdentifier(name) {
 		return "." + name
 	}
 	return fmt.Sprintf(".%q", name)

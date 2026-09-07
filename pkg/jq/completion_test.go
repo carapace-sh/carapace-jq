@@ -103,7 +103,7 @@ func TestCompletionInFunctionAfterArg(t *testing.T) {
 }
 
 func TestCompletionInFunctionAfterComma(t *testing.T) {
-	ctx := ParseForCompletion("limit(3, ")
+	ctx := ParseForCompletion("limit(3; ")
 	assertHasExpected(t, ctx, ExpectedExpression)
 	assertHasExpected(t, ctx, ExpectedClosingParen)
 	if ctx.Function == nil {
@@ -552,4 +552,60 @@ func TestCompletionDotFieldThenBracketNoExpression(t *testing.T) {
 	ctx := ParseForCompletion(".foo.[0]")
 	assertNotExpected(t, ctx, ExpectedExpression)
 	assertHasExpected(t, ctx, ExpectedOperator)
+}
+
+// --- Edge case tests for completion parser fixes ---
+
+func TestCompletionBreakDollar(t *testing.T) {
+	// After "break $", we need a label name, not operators
+	ctx := ParseForCompletion("break $")
+	assertHasExpected(t, ctx, ExpectedExpression)
+	assertNotExpected(t, ctx, ExpectedOperator)
+}
+
+func TestCompletionLabelDollar(t *testing.T) {
+	// After "label $", we need a label name
+	ctx := ParseForCompletion("label $")
+	assertHasExpected(t, ctx, ExpectedExpression)
+}
+
+func TestCompletionObjectAfterComma(t *testing.T) {
+	// After comma in object, we need a new key expression
+	ctx := ParseForCompletion("{a: 1, ")
+	assertHasExpected(t, ctx, ExpectedExpression)
+	assertHasExpected(t, ctx, ExpectedClosingBrace)
+	assertNotExpected(t, ctx, ExpectedOperator)
+	if ctx.Object == nil {
+		t.Fatal("expected Object context")
+	}
+	if !ctx.Object.InKey {
+		t.Error("expected InKey to be true after comma in object")
+	}
+}
+
+func TestCompletionObjectPartialKeyNoOperators(t *testing.T) {
+	// After "b" as partial key, operators should not be suggested
+	ctx := ParseForCompletion("{a: 1, b")
+	assertNotExpected(t, ctx, ExpectedOperator)
+	assertHasExpected(t, ctx, ExpectedColon)
+}
+
+func TestCompletionPatternAlternativePartial(t *testing.T) {
+	// After ? in a pattern context, it's the start of ?//
+	// Should not report Expression (it's not an expression context)
+	ctx := ParseForCompletion(". as {$a} ?")
+	assertNotExpected(t, ctx, ExpectedExpression)
+}
+
+func TestCompletionFunctionArgsSemicolonSeparator(t *testing.T) {
+	// After semicolon in function args, we expect a new expression
+	ctx := ParseForCompletion("limit(3; ")
+	assertHasExpected(t, ctx, ExpectedExpression)
+	assertHasExpected(t, ctx, ExpectedClosingParen)
+	if ctx.Function == nil {
+		t.Fatal("expected Function context")
+	}
+	if ctx.Function.ArgIndex != 1 {
+		t.Errorf("expected arg index 1, got %d", ctx.Function.ArgIndex)
+	}
 }

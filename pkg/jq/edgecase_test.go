@@ -302,7 +302,6 @@ var operatorCases = []edgeCase{
 	{"not", "[true, false | not]", ""},
 	{"chained alternatives", ".foo // .bar // .baz", ""},
 	{"alt assign", ".foo //= .bar", ""},
-	{"chained alt assign", ".a //= .b //= .c", ""},
 }
 
 func TestEdgeCaseOperators(t *testing.T) {
@@ -613,6 +612,84 @@ func TestEdgeCaseKnownLimitations(t *testing.T) {
 	runEdgeCases(t, knownLimitationCases)
 }
 
+// ----- Semicolon vs comma in function args -----
+// In jq, ';' separates arguments and ',' creates a comma expression
+// within a single argument.
+
+var semicolonCommaCases = []edgeCase{
+	{"semicolon args", "limit(3; .[])", ""},
+	{"comma as single arg (del)", "del(.a, .b)", ""},
+	{"comma as single arg (pick)", "pick(.[2], .[0], .[0])", ""},
+	{"debug with comma expr", `debug("msg", .)`, ""},
+	{"getpath with comma", `getpath(["a","b"], ["a","c"])`, ""},
+	{"INDEX semicolon", "INDEX(.[]; .id)", ""},
+	{"IN semicolon", "IN(.[]; 1, 2, 3)", ""},
+	{"JOIN semicolon", "JOIN($idx; .[]; .key; .value)", ""},
+	{"any with semicolon", `any(.tags[]; .name == "TAG")`, ""},
+	{"all with semicolon", `all(.tags[]; .name != "TAG")`, ""},
+	{"range three args", "range(0; 10; 3)", ""},
+	{"limit two args", "limit(3; .[])", ""},
+	{"split with semicolon", `split(", *"; null)`, ""},
+	{"sub with semicolon", `sub("^ +";"")`, ""},
+	{"def with semicolon args", "def f(a;b;c): a | b | c; f(.x; .y; .z)", ""},
+	{"def with mixed args", "def foo(f; $v): f | . + $v; foo(.a; 5)", ""},
+}
+
+func TestEdgeCaseSemicolonComma(t *testing.T) {
+	runEdgeCases(t, semicolonCommaCases)
+}
+
+// ----- Pipe right-associativity in sub-expressions -----
+// Pipe is right-associative in all contexts, including arrays,
+// objects, function args, and string interpolation.
+
+var pipeAssocCases = []edgeCase{
+	{"pipe right-assoc top level", ".a | .b | .c", ""},
+	{"pipe right-assoc in array", "[.a | .b | .c]", ""},
+	{"pipe right-assoc in object", "{x: .a | .b | .c}", ""},
+	{"pipe right-assoc in function", "map(.a | .b | .c)", ""},
+	{"pipe right-assoc in string interp", `"\(.a | .b | .c)"`, ""},
+	{"pipe right-assoc in reduce", "reduce .[] as $x (0; . + $x | . * 2)", ""},
+	{"pipe right-assoc in if", "if .a | .b then .c else .d end", ""},
+	{"pipe right-assoc in try", "try .a catch .c", ""},
+	{"as binding in function arg", "map(.x as $y | $y)", ""},
+	{"pipe right-assoc in paren", "(.a | .b | .c)", ""},
+}
+
+func TestEdgeCasePipeAssoc(t *testing.T) {
+	runEdgeCases(t, pipeAssocCases)
+}
+
+// ----- Keyword field names -----
+// Keywords like if, then, else, end are valid field names in jq.
+
+var keywordFieldCases = []edgeCase{
+	{"field if", ".if", ""},
+	{"field then", ".then", ""},
+	{"field else", ".else", ""},
+	{"field end", ".end", ""},
+	{"field def", ".def", ""},
+	{"field reduce", ".reduce", ""},
+	{"field foreach", ".foreach", ""},
+	{"field try", ".try", ""},
+	{"field catch", ".catch", ""},
+	{"field and", ".and", ""},
+	{"field or", ".or", ""},
+	{"field not", ".not", ""},
+	{"field as", ".as", ""},
+	{"field label", ".label", ""},
+	{"field break", ".break", ""},
+	{"field import", ".import", ""},
+	{"field include", ".include", ""},
+	{"field module", ".module", ""},
+	{"keyword field then access", ".if.then", ""},
+	{"keyword field in object", "{if: 1}", ""},
+}
+
+func TestEdgeCaseKeywordFields(t *testing.T) {
+	runEdgeCases(t, keywordFieldCases)
+}
+
 // ----- Complex real-world programs from the jq Cookbook -----
 
 var cookbookCases = []edgeCase{
@@ -678,6 +755,30 @@ func TestEdgeCaseErrorCases(t *testing.T) {
 		`{"unterminated`,          // unclosed object string key
 		"[1, 2, 3, ]",             // trailing comma in array
 		"{a: 1, }",                // trailing comma in object
+		// Non-associative operators (jq rejects chaining)
+		".a == .b == .c",          // comparison non-assoc
+		".a < .b < .c",            // comparison non-assoc
+		".a > .b > .c",            // comparison non-assoc
+		".a != .b != .c",          // comparison non-assoc
+		".a <= .b <= .c",          // comparison non-assoc
+		".a >= .b >= .c",          // comparison non-assoc
+		".a = .b = .c",            // assignment non-assoc
+		".a |= .b |= .c",          // update assignment non-assoc
+		".a += .b += .c",          // update assignment non-assoc
+		".a -= .b -= .c",          // update assignment non-assoc
+		".a *= .b *= .c",          // update assignment non-assoc
+		".a /= .b /= .c",          // update assignment non-assoc
+		".a %= .b %= .c",          // update assignment non-assoc
+		".a //= .b //= .c",        // update assignment non-assoc
+		// Empty destructuring patterns (jq rejects)
+		". as {} | .",             // empty object pattern
+		". as [] | .",             // empty array pattern
+		// Comment-only input
+		"# comment only",          // no expression, just comment
+		// Bare @ without format name
+		"@",                       // @ needs a format name
+		// Adjacent format strings without pipe
+		"@base64 @text",           // need pipe between formats
 	}
 	for _, input := range errorCases {
 		t.Run("error:"+input, func(t *testing.T) {
