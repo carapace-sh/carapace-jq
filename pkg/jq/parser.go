@@ -238,7 +238,7 @@ func (p *parser) parseDef(start int) (*Expression, error) {
 			args = append(args, FunctionArg{Name: argName, IsValue: isValue})
 
 			p.skipWhitespaceAndComments()
-			if !p.atEnd() && (p.peek() == ',' || p.peek() == ';') {
+			if !p.atEnd() && p.peek() == ';' {
 				p.advance()
 				continue
 			}
@@ -247,7 +247,7 @@ func (p *parser) parseDef(start int) (*Expression, error) {
 				p.advance()
 				break
 			}
-			return nil, p.syntaxError("expected ',' or ')' in function arguments")
+			return nil, p.syntaxError("expected ';' or ')' in def arguments")
 		}
 	}
 
@@ -406,6 +406,10 @@ func (p *parser) parsePatternSingle() (*Expression, error) {
 func (p *parser) parseArrayPattern(start int) (*Expression, error) {
 	p.advance() // consume [
 	var elements []*Expression
+	p.skipWhitespaceAndComments()
+	if !p.atEnd() && p.peek() == ']' {
+		return nil, p.syntaxError("empty array pattern is not allowed")
+	}
 	for {
 		p.skipWhitespaceAndComments()
 		if !p.atEnd() && p.peek() == ']' {
@@ -439,26 +443,92 @@ func (p *parser) parseArrayPattern(start int) (*Expression, error) {
 func (p *parser) parseObjectPattern(start int) (*Expression, error) {
 	p.advance() // consume {
 	var entries []ObjectEntry
+	p.skipWhitespaceAndComments()
+	if !p.atEnd() && p.peek() == '}' {
+		return nil, p.syntaxError("empty object pattern is not allowed")
+	}
 	for {
 		p.skipWhitespaceAndComments()
 		if !p.atEnd() && p.peek() == '}' {
 			p.advance()
 			break
 		}
-		// Object pattern entries are: key: $var  or  $var (shorthand)
-		if p.peek() == '$' {
+		var entry ObjectEntry
+		switch {
+		case p.peek() == '$':
+			// $var shorthand or $var: pattern
 			p.advance()
 			name, ok := p.scanIdentifier()
 			if !ok {
 				return nil, p.syntaxError("expected variable name in object pattern")
 			}
-			entries = append(entries, ObjectEntry{
-				KeyKind: ObjectKeyShorthand,
-				KeyName: name,
-				Value:   &Expression{Kind: KindVariable, Span: Span{Start: p.pos - len(name) - 1, End: p.pos}, payload: &VariableExpr{Name: name}},
-			})
-		} else {
-			// key: $var
+			p.skipWhitespaceAndComments()
+			if !p.atEnd() && p.peek() == ':' {
+				p.advance()
+				p.skipWhitespaceAndComments()
+				val, err := p.parsePatternSingle()
+				if err != nil {
+					return nil, err
+				}
+				entry = ObjectEntry{KeyKind: ObjectKeyVariable, KeyName: name, Value: val}
+			} else {
+				entry = ObjectEntry{
+					KeyKind: ObjectKeyShorthand,
+					KeyName: name,
+					Value:   &Expression{Kind: KindVariable, Span: Span{Start: p.pos - len(name) - 1, End: p.pos}, payload: &VariableExpr{Name: name}},
+				}
+			}
+		case p.peek() == '"':
+			// "string": pattern
+			parts, err := p.parseStringLiteralValue()
+			if err != nil {
+				return nil, err
+			}
+			var name strings.Builder
+			for _, part := range parts {
+				if t, ok := part.(StringText); ok {
+					name.WriteString(t.Text)
+				} else {
+					return nil, p.syntaxError("string interpolation not allowed in object pattern key")
+				}
+			}
+			p.skipWhitespaceAndComments()
+			if p.atEnd() || p.peek() != ':' {
+				return nil, p.syntaxError("expected ':' in object pattern")
+			}
+			p.advance()
+			p.skipWhitespaceAndComments()
+			val, err := p.parsePatternSingle()
+			if err != nil {
+				return nil, err
+			}
+			entry = ObjectEntry{KeyKind: ObjectKeyString, KeyName: name.String(), Value: val}
+		case p.peek() == '(':
+			// (expr): pattern
+			p.advance()
+			p.skipWhitespaceAndComments()
+			keyExpr, err := p.parseQuery()
+			if err != nil {
+				return nil, err
+			}
+			p.skipWhitespaceAndComments()
+			if p.atEnd() || p.peek() != ')' {
+				return nil, p.syntaxError("expected ')' in object pattern key")
+			}
+			p.advance()
+			p.skipWhitespaceAndComments()
+			if p.atEnd() || p.peek() != ':' {
+				return nil, p.syntaxError("expected ':' in object pattern")
+			}
+			p.advance()
+			p.skipWhitespaceAndComments()
+			val, err := p.parsePatternSingle()
+			if err != nil {
+				return nil, err
+			}
+			entry = ObjectEntry{KeyKind: ObjectKeyExpression, Key: keyExpr, Value: val}
+		default:
+			// key: pattern (identifier or keyword key)
 			key, ok := p.scanIdentifier()
 			if !ok {
 				return nil, p.syntaxError("expected key or $var in object pattern")
@@ -473,12 +543,13 @@ func (p *parser) parseObjectPattern(start int) (*Expression, error) {
 			if err != nil {
 				return nil, err
 			}
-			entries = append(entries, ObjectEntry{
+			entry = ObjectEntry{
 				KeyKind: ObjectKeyBare,
 				KeyName: key,
 				Value:   val,
-			})
+			}
 		}
+		entries = append(entries, entry)
 		p.skipWhitespaceAndComments()
 		if !p.atEnd() && p.peek() == ',' {
 			p.advance()
@@ -515,41 +586,39 @@ func (p *parser) parsePipe() (*Expression, error) {
 }
 
 // parseExp parses a pipe-level expression without commas.
-// Used for object values, array elements, function args, if/then/else,
+// Used for object values, array elements, if/then/else,
 // reduce/foreach init/update, and other contexts where comma is a separator.
+// Pipe is right-associative: a | b | c parses as a | (b | c).
 func (p *parser) parseExp() (*Expression, error) {
 	left, err := p.parsePratt(precComma + 1)
 	if err != nil {
 		return nil, err
 	}
-	for {
-		p.skipWhitespaceAndComments()
-		if p.atEnd() || p.peek() != '|' {
-			break
-		}
-		// Don't consume |= as pipe
-		if p.pos+1 < len(p.input) && p.input[p.pos+1] == '=' {
-			break
-		}
-		p.advance() // consume |
-		p.skipWhitespaceAndComments()
-		right, err := p.parsePratt(precComma + 1)
-		if err != nil {
-			return nil, err
-		}
-		left = &Expression{
-			Kind:    KindPipe,
-			Span:    Span{Start: left.Span.Start, End: right.Span.End},
-			payload: &PipeExpr{LHS: left, RHS: right},
-		}
-	}
-	// Handle as-binding at the pipe level
 	p.skipWhitespaceAndComments()
+
+	// Check for as-binding: exp as $pattern | body
 	if p.matchKeyword("as") {
-		start := left.Span.Start
-		return p.parseAsBinding(left, start)
+		return p.parseAsBinding(left, left.Span.Start)
 	}
-	return left, nil
+
+	if p.atEnd() || p.peek() != '|' {
+		return left, nil
+	}
+	// Don't consume |= as pipe
+	if p.pos+1 < len(p.input) && p.input[p.pos+1] == '=' {
+		return left, nil
+	}
+	p.advance() // consume |
+	p.skipWhitespaceAndComments()
+	right, err := p.parseExp()
+	if err != nil {
+		return nil, err
+	}
+	return &Expression{
+		Kind:    KindPipe,
+		Span:    Span{Start: left.Span.Start, End: right.Span.End},
+		payload: &PipeExpr{LHS: left, RHS: right},
+	}, nil
 }
 
 // parsePratt is the Pratt parser for all precedence levels.
@@ -558,6 +627,9 @@ func (p *parser) parsePratt(minPrec int) (*Expression, error) {
 	if err != nil {
 		return nil, err
 	}
+	// lastNonAssocPrec tracks the precedence of the last consumed non-associative
+	// operator, so we can reject chaining at the same level (e.g. a == b == c).
+	lastNonAssocPrec := -1
 	for {
 		// Handle postfix operators (? .foo .[...] .[])
 		left, err = p.parsePostfix(left)
@@ -575,6 +647,12 @@ func (p *parser) parsePratt(minPrec int) (*Expression, error) {
 			break
 		}
 
+		// Non-associative operators cannot chain at the same precedence
+		// (e.g. a == b == c is a syntax error in jq).
+		if lastNonAssocPrec == prec && isNonAssociative(op) {
+			return nil, p.syntaxErrorf("operator '%s' is non-associative", op)
+		}
+
 		// For non-associative operators, don't allow same-precedence nesting
 		nextMinPrec := prec + 1
 		if rightAssoc {
@@ -589,6 +667,12 @@ func (p *parser) parsePratt(minPrec int) (*Expression, error) {
 		}
 
 		left = p.makeBinaryNode(op, left, right)
+
+		if isNonAssociative(op) {
+			lastNonAssocPrec = prec
+		} else {
+			lastNonAssocPrec = -1
+		}
 	}
 	return left, nil
 }
@@ -668,6 +752,17 @@ func (p *parser) peekInfixOp() (op string, prec int, rightAssoc bool) {
 	}
 
 	return "", 0, false
+}
+
+// isNonAssociative reports whether the operator is non-associative,
+// meaning it cannot be chained at the same precedence level (e.g. a == b == c).
+func isNonAssociative(op string) bool {
+	switch op {
+	case "=", "|=", "+=", "-=", "*=", "/=", "%=", "//=",
+		"==", "!=", "<", ">", "<=", ">=":
+		return true
+	}
+	return false
 }
 
 func (p *parser) consumeInfixOp(op string) {
@@ -863,10 +958,11 @@ func (p *parser) parseBracketAccess(base *Expression) *Expression {
 
 	// .[expr] or .[start:end] — index or slice
 	// First, try to parse an expression
+	// Bracket contents are a full Query in jq (commas and pipes allowed).
 	var firstExpr *Expression
 	if !p.atEnd() && p.peek() != ':' {
 		var err error
-		firstExpr, err = p.parseExp()
+		firstExpr, err = p.parseQuery()
 		if err != nil {
 			return nil
 		}
@@ -882,7 +978,7 @@ func (p *parser) parseBracketAccess(base *Expression) *Expression {
 		var endExpr *Expression
 		if !p.atEnd() && p.peek() != ']' {
 			var err error
-			endExpr, err = p.parseExp()
+			endExpr, err = p.parseQuery()
 			if err != nil {
 				return nil
 			}
@@ -1061,7 +1157,8 @@ func (p *parser) parsePrimary() (*Expression, error) {
 	return nil, p.syntaxErrorf("unexpected character %q", ch)
 }
 
-// parseArray parses [expr, expr, ...]
+// parseArray parses [Query] — in jq the array content is a single Query,
+// so pipes apply to the whole comma expression: [1, 2 | .+1] is [(1,2) | .+1].
 func (p *parser) parseArray(start int) (*Expression, error) {
 	p.advance() // consume [
 	var elements []*Expression
@@ -1074,25 +1171,16 @@ func (p *parser) parseArray(start int) (*Expression, error) {
 			payload: &ArrayExpr{Elements: elements},
 		}, nil
 	}
-	for {
-		p.skipWhitespaceAndComments()
-		elem, err := p.parseExp()
-		if err != nil {
-			return nil, err
-		}
-		elements = append(elements, elem)
-		p.skipWhitespaceAndComments()
-		if !p.atEnd() && p.peek() == ',' {
-			p.advance()
-			continue
-		}
-		p.skipWhitespaceAndComments()
-		if !p.atEnd() && p.peek() == ']' {
-			p.advance()
-			break
-		}
-		return nil, p.syntaxError("expected ',' or ']' in array")
+	elem, err := p.parseQuery()
+	if err != nil {
+		return nil, err
 	}
+	elements = append(elements, elem)
+	p.skipWhitespaceAndComments()
+	if p.atEnd() || p.peek() != ']' {
+		return nil, p.syntaxError("expected ']' in array")
+	}
+	p.advance()
 	return &Expression{
 		Kind:    KindArray,
 		Span:    Span{Start: start, End: p.pos},
@@ -1374,13 +1462,16 @@ func (p *parser) parseKeywordOrFunction(start int) (*Expression, error) {
 		} else {
 			for {
 				p.skipWhitespaceAndComments()
-				arg, err := p.parseExp()
+				// Parse each argument as a pipe-level expression so that
+				// commas form comma-expressions within a single argument.
+				// Only ';' separates arguments.
+				arg, err := p.parsePipe()
 				if err != nil {
 					return nil, err
 				}
 				args = append(args, arg)
 				p.skipWhitespaceAndComments()
-				if !p.atEnd() && (p.peek() == ',' || p.peek() == ';') {
+				if !p.atEnd() && p.peek() == ';' {
 					p.advance()
 					continue
 				}
@@ -1389,7 +1480,7 @@ func (p *parser) parseKeywordOrFunction(start int) (*Expression, error) {
 					p.advance()
 					break
 				}
-				return nil, p.syntaxError("expected ',' or ')' in function arguments")
+				return nil, p.syntaxError("expected ';' or ')' in function arguments")
 			}
 		}
 		return &Expression{

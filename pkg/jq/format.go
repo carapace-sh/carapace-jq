@@ -178,7 +178,7 @@ func formatExprInner(e *Expression) string {
 		for i, a := range fc.Args {
 			parts[i] = formatExpr(a, precPipe)
 		}
-		return fmt.Sprintf("%s(%s)", fc.Name, strings.Join(parts, ", "))
+		return fmt.Sprintf("%s(%s)", fc.Name, strings.Join(parts, "; "))
 	case KindIf:
 		return formatIf(e.payload.(*IfExpr))
 	case KindTry:
@@ -248,8 +248,9 @@ func formatExprInner(e *Expression) string {
 }
 
 func formatField(name string) string {
-	// Use .foo for simple identifiers, ."foo" for complex
-	if isIdentifier(name) && !isKeyword(name) {
+	// Use .foo for simple identifiers, ."foo" for complex names.
+	// Keywords are valid field names in jq and don't need quoting.
+	if isIdentifier(name) {
 		return "." + name
 	}
 	return fmt.Sprintf(".%q", name)
@@ -354,9 +355,16 @@ func formatPattern(e *Expression) string {
 		oe := e.payload.(*ObjectExpr)
 		parts := make([]string, len(oe.Entries))
 		for i, entry := range oe.Entries {
-			if entry.KeyKind == ObjectKeyShorthand && entry.Value != nil && entry.Value.Kind == KindVariable {
+			switch {
+			case entry.KeyKind == ObjectKeyShorthand && entry.Value != nil && entry.Value.Kind == KindVariable:
 				parts[i] = "$" + entry.KeyName
-			} else {
+			case entry.KeyKind == ObjectKeyString:
+				parts[i] = fmt.Sprintf("%q: %s", entry.KeyName, formatPattern(entry.Value))
+			case entry.KeyKind == ObjectKeyExpression:
+				parts[i] = fmt.Sprintf("(%s): %s", formatExpr(entry.Key, precPipe), formatPattern(entry.Value))
+			case entry.KeyKind == ObjectKeyVariable:
+				parts[i] = fmt.Sprintf("$%s: %s", entry.KeyName, formatPattern(entry.Value))
+			default:
 				parts[i] = entry.KeyName + ": " + formatPattern(entry.Value)
 			}
 		}

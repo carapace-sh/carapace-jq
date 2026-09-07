@@ -380,7 +380,7 @@ func (p *compParser) parseDefArgs() {
 			p.addExpected(ExpectedClosingParen)
 			return
 		}
-		if p.peek() == ',' || p.peek() == ';' {
+		if p.peek() == ';' {
 			p.advance()
 			continue
 		}
@@ -403,6 +403,8 @@ func (p *compParser) parseLabel() {
 	}
 	p.skipWS()
 	if p.atCursorOrEnd() {
+		// After 'label $' — need a label name
+		p.beforeExpression()
 		return
 	}
 	p.scanIdent()
@@ -447,16 +449,29 @@ func (p *compParser) parsePattern() {
 		return
 	}
 	p.parsePatternSingle()
-	// Check for ?//
-	p.skipWS()
-	for p.matchString("?//") {
-		p.pos += 3
+	// Check for ?// pattern alternative
+	for {
 		p.skipWS()
-		if p.atCursorOrEnd() {
-			p.addExpected(ExpectedDollar)
+		if p.matchString("?//") {
+			p.pos += 3
+			p.skipWS()
+			if p.atCursorOrEnd() {
+				p.addExpected(ExpectedDollar)
+				return
+			}
+			p.parsePatternSingle()
+			continue
+		}
+		// Check for partial ?// at cursor (? or ?/)
+		// In a pattern context, ? can only be the start of ?//
+		if p.pos < p.cursor && p.peek() == '?' {
+			p.advance()
+			if p.pos < p.cursor && p.peek() == '/' {
+				p.advance()
+			}
 			return
 		}
-		p.parsePatternSingle()
+		break
 	}
 }
 
@@ -510,14 +525,59 @@ func (p *compParser) parsePatternSingle() {
 				p.advance()
 				return
 			}
-			if p.peek() == '$' {
+			switch {
+			case p.peek() == '$':
 				p.advance()
-				p.scanIdent()
-			} else {
 				p.scanIdent()
 				p.skipWS()
 				if !p.atCursorOrEnd() && p.peek() == ':' {
 					p.advance()
+					p.parsePatternSingle()
+				}
+			case p.peek() == '"':
+				p.parseStringLiteral()
+				p.skipWS()
+				if !p.atCursorOrEnd() && p.peek() == ':' {
+					p.advance()
+					p.skipWS()
+					if p.atCursorOrEnd() {
+						p.beforeExpression()
+						return
+					}
+					p.parsePatternSingle()
+				}
+			case p.peek() == '(':
+				p.advance()
+				p.parenDepth++
+				p.skipWS()
+				if !p.atCursorOrEnd() {
+					p.parseQuery()
+				}
+				p.skipWS()
+				if !p.atCursorOrEnd() && p.peek() == ')' {
+					p.advance()
+				}
+				p.parenDepth--
+				p.skipWS()
+				if !p.atCursorOrEnd() && p.peek() == ':' {
+					p.advance()
+					p.skipWS()
+					if p.atCursorOrEnd() {
+						p.beforeExpression()
+						return
+					}
+					p.parsePatternSingle()
+				}
+			default:
+				p.scanIdent()
+				p.skipWS()
+				if !p.atCursorOrEnd() && p.peek() == ':' {
+					p.advance()
+					p.skipWS()
+					if p.atCursorOrEnd() {
+						p.beforeExpression()
+						return
+					}
 					p.parsePatternSingle()
 				}
 			}
@@ -547,7 +607,7 @@ func (p *compParser) parsePipeLevel() {
 		if p.atCursorOrEnd() {
 			break
 		}
-		// Check for pipe
+		// Check for pipe (right-associative: recurse, then return)
 		if p.peek() == '|' && (p.pos+1 >= p.cursor || p.input[p.pos+1] != '=') {
 			p.advance()
 			p.skipWS()
@@ -555,10 +615,10 @@ func (p *compParser) parsePipeLevel() {
 				p.beforeExpression()
 				return
 			}
-			p.parseExpLevel()
-			continue
+			p.parsePipeLevel() // recursive — right-assoc
+			return
 		}
-		// Check for comma
+		// Check for comma (left-associative: parse RHS, continue loop)
 		if p.peek() == ',' {
 			p.advance()
 			p.skipWS()
@@ -579,28 +639,26 @@ func (p *compParser) parseExpLevel() {
 }
 
 // parsePipeExp handles a sub-expression that allows pipe but not comma.
-// This mirrors parser.go's parseExp, used for function args, array elements,
+// This mirrors parser.go's parseExp, used for array elements,
 // object values, bracket access expressions, if/then/else bodies, etc.
+// Pipe is right-associative.
 func (p *compParser) parsePipeExp() {
 	p.parsePratt(precPipe + 1) // exclude comma
-	for {
-		p.skipWS()
-		if p.atCursorOrEnd() {
-			break
-		}
-		// Check for pipe (but not |=)
-		if p.peek() == '|' && (p.pos+1 >= p.cursor || p.input[p.pos+1] != '=') {
-			p.advance()
-			p.skipWS()
-			if p.atCursorOrEnd() {
-				p.beforeExpression()
-				return
-			}
-			p.parsePratt(precPipe + 1)
-			continue
-		}
-		break
+	p.skipWS()
+	if p.atCursorOrEnd() {
+		return
 	}
+	// Check for pipe (but not |=)
+	if p.peek() != '|' || (p.pos+1 < p.cursor && p.input[p.pos+1] == '=') {
+		return
+	}
+	p.advance() // consume |
+	p.skipWS()
+	if p.atCursorOrEnd() {
+		p.beforeExpression()
+		return
+	}
+	p.parsePipeExp() // recursive — right-assoc
 }
 
 // parsePratt handles the Pratt parser levels
@@ -990,6 +1048,7 @@ func (p *compParser) parseObjectEntries() {
 				}
 			}
 			p.addExpected(ExpectedClosingBrace)
+			p.exprStarted = true // prevent afterExpression from adding operators
 			return
 		}
 		if p.peek() == '}' {
@@ -1001,10 +1060,22 @@ func (p *compParser) parseObjectEntries() {
 		if p.atCursorOrEnd() {
 			p.addExpected(ExpectedComma)
 			p.addExpected(ExpectedClosingBrace)
+			p.exprStarted = true // prevent afterExpression from adding operators
 			return
 		}
 		if p.peek() == ',' {
 			p.advance()
+			// After comma, we need a new key expression
+			p.skipWS()
+			if p.atCursorOrEnd() {
+				top := p.currentObj()
+				if top != nil {
+					p.ctx.Object = &ObjectContext{InKey: true}
+				}
+				p.beforeExpression()
+				p.addExpected(ExpectedClosingBrace)
+				return
+			}
 			continue
 		}
 		if p.peek() == '}' {
@@ -1272,7 +1343,10 @@ func (p *compParser) parseKeywordOrFunction() {
 		}
 		if p.peek() == '$' {
 			p.advance()
-			p.scanIdent()
+			if _, ok := p.scanIdent(); !ok {
+				// After 'break $' with no name yet — need a label name
+				p.beforeExpression()
+			}
 		}
 		return
 	case "true", "false", "null":
@@ -1327,14 +1401,14 @@ func (p *compParser) parseFunctionArgs() {
 			p.advance()
 			return
 		}
-		p.parsePipeExp()
+		p.parsePipeLevel()
 		p.skipWS()
 		if p.atCursorOrEnd() {
-			p.addExpected(ExpectedComma)
+			p.addExpected(ExpectedSemicolon)
 			p.addExpected(ExpectedClosingParen)
 			return
 		}
-		if p.peek() == ',' || p.peek() == ';' {
+		if p.peek() == ';' {
 			p.advance()
 			if len(p.funcStack) > 0 {
 				p.funcStack[len(p.funcStack)-1].argIndex++
