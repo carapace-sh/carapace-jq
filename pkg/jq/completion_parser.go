@@ -525,14 +525,59 @@ func (p *compParser) parsePatternSingle() {
 				p.advance()
 				return
 			}
-			if p.peek() == '$' {
+			switch {
+			case p.peek() == '$':
 				p.advance()
-				p.scanIdent()
-			} else {
 				p.scanIdent()
 				p.skipWS()
 				if !p.atCursorOrEnd() && p.peek() == ':' {
 					p.advance()
+					p.parsePatternSingle()
+				}
+			case p.peek() == '"':
+				p.parseStringLiteral()
+				p.skipWS()
+				if !p.atCursorOrEnd() && p.peek() == ':' {
+					p.advance()
+					p.skipWS()
+					if p.atCursorOrEnd() {
+						p.beforeExpression()
+						return
+					}
+					p.parsePatternSingle()
+				}
+			case p.peek() == '(':
+				p.advance()
+				p.parenDepth++
+				p.skipWS()
+				if !p.atCursorOrEnd() {
+					p.parseQuery()
+				}
+				p.skipWS()
+				if !p.atCursorOrEnd() && p.peek() == ')' {
+					p.advance()
+				}
+				p.parenDepth--
+				p.skipWS()
+				if !p.atCursorOrEnd() && p.peek() == ':' {
+					p.advance()
+					p.skipWS()
+					if p.atCursorOrEnd() {
+						p.beforeExpression()
+						return
+					}
+					p.parsePatternSingle()
+				}
+			default:
+				p.scanIdent()
+				p.skipWS()
+				if !p.atCursorOrEnd() && p.peek() == ':' {
+					p.advance()
+					p.skipWS()
+					if p.atCursorOrEnd() {
+						p.beforeExpression()
+						return
+					}
 					p.parsePatternSingle()
 				}
 			}
