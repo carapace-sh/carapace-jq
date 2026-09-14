@@ -37,37 +37,6 @@ func hexVal(r rune) rune {
 	return 0
 }
 
-// jq keywords — these are NOT valid function names
-var jqKeywords = map[string]bool{
-	"if":      true,
-	"then":    true,
-	"else":    true,
-	"elif":    true,
-	"end":     true,
-	"try":     true,
-	"catch":   true,
-	"reduce":  true,
-	"foreach": true,
-	"as":      true,
-	"def":     true,
-	"import":  true,
-	"include": true,
-	"module":  true,
-	"label":   true,
-	"break":   true,
-	"and":     true,
-	"or":      true,
-	"not":     true,
-	"true":    true,
-	"false":   true,
-	"null":    true,
-	"__loc__": true,
-}
-
-func isKeyword(s string) bool {
-	return jqKeywords[s]
-}
-
 // scanIdentifier scans an identifier starting at the current position.
 // Returns the identifier text and true if found.
 func (p *parser) scanIdentifier() (string, bool) {
